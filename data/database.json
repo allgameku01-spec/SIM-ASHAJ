@@ -583,27 +583,28 @@
   "users": [
     {
       "id": "u-superadmin",
-      "fullName": "Administrator Management",
       "username": "superadmin",
-      "password": "12345",
+      "fullName": "Administrator Management",
       "role": "Super Admin",
+      "password": "12345",
       "department": "Pimpinan & IT UPT",
       "assignedBuilding": "Semua Gedung",
-      "supervisorId": null,
       "phone": "-",
-      "status": "Aktif"
+      "status": "Aktif",
+      "isOwner": false
     },
     {
       "id": "u-admin",
-      "fullName": "Administrator Operasional",
       "username": "admin",
-      "password": "12345",
+      "fullName": "Administrator Operasional",
       "role": "Admin",
+      "password": "12345",
       "department": "Administrasi & Pelayanan UPT",
-      "assignedBuilding": "Semua Gedung",
       "supervisorId": "u-superadmin",
+      "assignedBuilding": "Semua Gedung",
       "phone": "-",
-      "status": "Aktif"
+      "status": "Aktif",
+      "isOwner": false
     }
   ],
   "meetingRooms": [
@@ -1443,6 +1444,21 @@
   "qcInspections": [],
   "workSessions": [
     {
+      "id": "SESI-3416-IN",
+      "userId": "u-superadmin",
+      "userName": "Administrator Management",
+      "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
+      "loginTime": "2026-10-21T08:09:43.000Z",
+      "logoutTime": "2026-10-21T08:21:59.000Z",
+      "durationSeconds": 736,
+      "durationFormatted": "0 Jam 12 Menit 16 Detik",
+      "status": "SELESAI",
+      "lastHeartbeat": "2026-10-21T08:21:57.160Z",
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
+    },
+    {
       "id": "SESI-9806-IN",
       "userId": "u-superadmin",
       "userName": "Administrator Management",
@@ -1450,13 +1466,12 @@
       "department": "Pimpinan & IT UPT",
       "assignedBuilding": "Semua Gedung",
       "loginTime": "2026-10-21T07:45:09.000Z",
-      "logoutTime": "2026-10-21 15:21:59",
+      "logoutTime": "2026-10-21T08:21:59.000Z",
       "durationSeconds": 1,
       "durationFormatted": "0 Jam 0 Menit 1 Detik",
       "status": "SELESAI",
       "lastHeartbeat": "2026-10-21T08:21:57.160Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
       "id": "SESI-6487-IN",
@@ -1474,23 +1489,72 @@
       "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
-      "id": "SESI-3416-IN",
+      "id": "SESI-3589-IN",
       "userId": "u-superadmin",
       "userName": "Administrator Management",
       "userRole": "Super Admin",
-      "loginTime": "2026-10-21 15:09:43",
-      "logoutTime": "2026-10-21 15:21:59",
-      "durationSeconds": 736,
-      "durationFormatted": "0 Jam 12 Menit 16 Detik",
-      "status": "SELESAI",
+      "loginTime": "2026-10-21 16:27:13",
+      "logoutTime": null,
+      "durationSeconds": 5,
+      "durationFormatted": "0 Jam 0 Menit 5 Detik (Sedang Berjalan)",
+      "status": "AKTIF",
       "department": "Pimpinan & IT UPT",
       "assignedBuilding": "Semua Gedung",
-      "lastHeartbeat": "2026-10-21T08:21:57.160Z",
+      "lastHeartbeat": "2026-10-21T09:27:18.954Z",
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
+      "closeOtherUserSessions": false
+    },
+    {
+      "id": "SESI-4908-IN",
+      "userId": "u-superadmin",
+      "userName": "Administrator Management",
+      "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
+      "loginTime": "2026-10-21 15:28:14",
+      "logoutTime": "2026-10-21 15:56:51",
+      "durationSeconds": 1717,
+      "durationFormatted": "0 Jam 28 Menit 37 Detik",
+      "status": "SELESAI",
+      "lastHeartbeat": "2026-10-21T08:56:41.399Z",
       "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
       "closeOtherUserSessions": false
     }
   ],
   "auditLogs": [
+    {
+      "id": "audit-1792574833658-bq3f",
+      "timestamp": "2026-10-21 09:27:13",
+      "user": "System",
+      "role": "System",
+      "action": "Login System",
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13"
+    },
+    {
+      "id": "audit-1792573011872-72o1",
+      "timestamp": "2026-10-21 08:56:51",
+      "user": "Administrator Management",
+      "role": "Super Admin",
+      "action": "Logout System",
+      "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:56:51. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
+      "durationMinutes": 0
+    },
+    {
+      "id": "audit-1792573006717-58ho",
+      "timestamp": "2026-10-21 08:56:46",
+      "user": "Administrator Management",
+      "role": "Super Admin",
+      "action": "Reset Sesi Kerja",
+      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan."
+    },
+    {
+      "id": "audit-1792571294953-164j",
+      "timestamp": "2026-10-21 08:28:14",
+      "user": "System",
+      "role": "System",
+      "action": "Login System",
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14"
+    },
     {
       "id": "audit-1792570919419-scwf",
       "timestamp": "2026-10-21 08:21:59",
@@ -3698,42 +3762,6 @@
       "action": "Login System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
       "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792557390437-twya",
-      "timestamp": "2026-10-21 04:36:30",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792554521660-a5re",
-      "timestamp": "2026-10-21 03:48:41",
-      "user": "Administrator Operasional (Admin)",
-      "role": "Admin",
-      "action": "Logout System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 10:48:41. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792553705798-3g1q",
-      "timestamp": "2026-10-21 03:35:05",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792553705798-3g1q",
-      "timestamp": "2026-10-21 03:35:05",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
-      "hasQrAndSignature": false
     }
   ],
   "chatChannels": [
@@ -3808,7 +3836,7 @@
     "subTitle": "SIM - Sistem Informasi Manajemen",
     "ministryName": "KEMENTERIAN HAJI DAN UMRAH REPUBLIK INDONESIA",
     "address": "Jl. Raya Pd. Gede, RT.1/RW.1, Pinang Ranti, Kec. Makasar, Kota Jakarta Timur, Daerah Khusus Ibukota Jakarta 13560, Indonesia.",
-    "phone": "0816243154",
+    "phone": 816243154,
     "email": "info@asramahajijakarta.id",
     "portalUrl": "https://asramahajijakarta.id",
     "appLogo": "OFFICIAL_LOGO",
@@ -4651,6 +4679,21 @@
   "qc_inspections": [],
   "work_sessions": [
     {
+      "id": "SESI-3416-IN",
+      "userId": "u-superadmin",
+      "userName": "Administrator Management",
+      "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
+      "loginTime": "2026-10-21T08:09:43.000Z",
+      "logoutTime": "2026-10-21T08:21:59.000Z",
+      "durationSeconds": 736,
+      "durationFormatted": "0 Jam 12 Menit 16 Detik",
+      "status": "SELESAI",
+      "lastHeartbeat": "2026-10-21T08:21:57.160Z",
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
+    },
+    {
       "id": "SESI-9806-IN",
       "userId": "u-superadmin",
       "userName": "Administrator Management",
@@ -4658,13 +4701,12 @@
       "department": "Pimpinan & IT UPT",
       "assignedBuilding": "Semua Gedung",
       "loginTime": "2026-10-21T07:45:09.000Z",
-      "logoutTime": "2026-10-21 15:21:59",
+      "logoutTime": "2026-10-21T08:21:59.000Z",
       "durationSeconds": 1,
       "durationFormatted": "0 Jam 0 Menit 1 Detik",
       "status": "SELESAI",
       "lastHeartbeat": "2026-10-21T08:21:57.160Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
       "id": "SESI-6487-IN",
@@ -4682,23 +4724,72 @@
       "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
-      "id": "SESI-3416-IN",
+      "id": "SESI-3589-IN",
       "userId": "u-superadmin",
       "userName": "Administrator Management",
       "userRole": "Super Admin",
-      "loginTime": "2026-10-21 15:09:43",
-      "logoutTime": "2026-10-21 15:21:59",
-      "durationSeconds": 736,
-      "durationFormatted": "0 Jam 12 Menit 16 Detik",
-      "status": "SELESAI",
+      "loginTime": "2026-10-21 16:27:13",
+      "logoutTime": null,
+      "durationSeconds": 5,
+      "durationFormatted": "0 Jam 0 Menit 5 Detik (Sedang Berjalan)",
+      "status": "AKTIF",
       "department": "Pimpinan & IT UPT",
       "assignedBuilding": "Semua Gedung",
-      "lastHeartbeat": "2026-10-21T08:21:57.160Z",
+      "lastHeartbeat": "2026-10-21T09:27:18.954Z",
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
+      "closeOtherUserSessions": false
+    },
+    {
+      "id": "SESI-4908-IN",
+      "userId": "u-superadmin",
+      "userName": "Administrator Management",
+      "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
+      "loginTime": "2026-10-21 15:28:14",
+      "logoutTime": "2026-10-21 15:56:51",
+      "durationSeconds": 1717,
+      "durationFormatted": "0 Jam 28 Menit 37 Detik",
+      "status": "SELESAI",
+      "lastHeartbeat": "2026-10-21T08:56:41.399Z",
       "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
       "closeOtherUserSessions": false
     }
   ],
   "system_logs": [
+    {
+      "id": "audit-1792574833658-bq3f",
+      "timestamp": "2026-10-21 09:27:13",
+      "user": "System",
+      "role": "System",
+      "action": "Login System",
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13"
+    },
+    {
+      "id": "audit-1792573011872-72o1",
+      "timestamp": "2026-10-21 08:56:51",
+      "user": "Administrator Management",
+      "role": "Super Admin",
+      "action": "Logout System",
+      "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:56:51. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
+      "durationMinutes": 0
+    },
+    {
+      "id": "audit-1792573006717-58ho",
+      "timestamp": "2026-10-21 08:56:46",
+      "user": "Administrator Management",
+      "role": "Super Admin",
+      "action": "Reset Sesi Kerja",
+      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan."
+    },
+    {
+      "id": "audit-1792571294953-164j",
+      "timestamp": "2026-10-21 08:28:14",
+      "user": "System",
+      "role": "System",
+      "action": "Login System",
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14"
+    },
     {
       "id": "audit-1792570919419-scwf",
       "timestamp": "2026-10-21 08:21:59",
@@ -6906,42 +6997,6 @@
       "action": "Login System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
       "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792557390437-twya",
-      "timestamp": "2026-10-21 04:36:30",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792554521660-a5re",
-      "timestamp": "2026-10-21 03:48:41",
-      "user": "Administrator Operasional (Admin)",
-      "role": "Admin",
-      "action": "Logout System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 10:48:41. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792553705798-3g1q",
-      "timestamp": "2026-10-21 03:35:05",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
-      "hasQrAndSignature": false
-    },
-    {
-      "id": "audit-1792553705798-3g1q",
-      "timestamp": "2026-10-21 03:35:05",
-      "user": "System",
-      "role": "System",
-      "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
-      "hasQrAndSignature": false
     }
   ],
   "chat_channels": [
@@ -7016,7 +7071,7 @@
     "subTitle": "SIM - Sistem Informasi Manajemen",
     "ministryName": "KEMENTERIAN HAJI DAN UMRAH REPUBLIK INDONESIA",
     "address": "Jl. Raya Pd. Gede, RT.1/RW.1, Pinang Ranti, Kec. Makasar, Kota Jakarta Timur, Daerah Khusus Ibukota Jakarta 13560, Indonesia.",
-    "phone": "0816243154",
+    "phone": 816243154,
     "email": "info@asramahajijakarta.id",
     "portalUrl": "https://asramahajijakarta.id",
     "appLogo": "OFFICIAL_LOGO",
