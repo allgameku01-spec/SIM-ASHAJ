@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hajj-50: #faf6f2;
+  --color-hajj-100: #f4ece3;
+  --color-hajj-200: #eadacf;
+  --color-hajj-300: #dbc0ac;
+  --color-hajj-400: #c5a183;
+  --color-hajj-500: #a77c57;
+  --color-hajj-600: #8a623d;
+  --color-hajj-700: #6f4b2b; /* Warna Cokelat Emas Resmi Kementerian Agama / Asrama Haji */
+  --color-hajj-800: #55381e;
+  --color-hajj-900: #412813;
+  --color-hajj-950: #26160a;
+
+  --color-gold-50: #fefdf8;
+  --color-gold-100: #fdf8e9;
+  --color-gold-200: #faefce;
+  --color-gold-300: #f3dfa2;
+  --color-gold-400: #e8ca6e;
+  --color-gold-500: #cca241;
+  --color-gold-600: #af832f;
+  --color-gold-700: #8c6422;
+  --color-gold-800: #6e4e1c;
+  --color-gold-900: #573e17;
+
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  background-color: #faf7f5;
+  color: #1e293b;
+  overflow-x: clip;
+  max-width: 100vw;
+  width: 100%;
+}
+
+html {
+  font-size: 13.5px;
+  overflow-x: clip;
+  max-width: 100vw;
+  width: 100%;
+}
+
+html.modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

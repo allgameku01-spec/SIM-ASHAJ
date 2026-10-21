@@ -1,0 +1,6 @@
+{
+  "name": "SIM Asrama Haji Jakarta",
+  "description": "Sistem Informasi Manajemen Akomodasi & Operasional UPT Asrama Haji Jakarta dengan Database Google Spreadsheet Real-Time",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
