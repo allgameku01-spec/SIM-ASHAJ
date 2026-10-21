@@ -167,33 +167,28 @@ export function FloatingChatPanel() {
 
   const isCurrentUserManager = isManagerRole(currentUser.role);
 
-  // Real-Time Multi-Account Online Presence Engine
+  // Real-Time Multi-Account Online Presence Engine (Sinkron Cepat & Jelas: 25 detik)
   const isUserOnline = (userId: string): boolean => {
     if (userId === currentUser.id) return true;
     const now = Date.now();
-    // 1. Check live real-time presence heartbeats across concurrent devices
+    // 1. Check live real-time presence heartbeats across concurrent devices (< 25 detik)
     const hasLivePresence = onlinePresences.some(p => {
       if (p.userId !== userId) return false;
       const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
-      return !lastSeen || (now - lastSeen < 180000);
+      return !lastSeen || (now - lastSeen <= 25000);
     });
     if (hasLivePresence) return true;
 
-    // 2. Check active work sessions
+    // 2. Check active work sessions with recent heartbeat
     const hasActiveShift = workSessions.some(s => {
       if (s.userId !== userId || s.status !== 'AKTIF' || s.logoutTime) return false;
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        if (!isNaN(hb)) return now - hb < 180000;
+        if (!isNaN(hb)) return now - hb <= 30000;
       }
-      if (s.loginTime) {
-        const start = parseLocalTimeString(s.loginTime).getTime();
-        if (!isNaN(start)) return now - start < 4 * 3600 * 1000;
-      }
-      return true;
+      return false;
     });
     if (hasActiveShift) return true;
-
     return false;
   };
 

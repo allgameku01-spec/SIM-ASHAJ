@@ -173,14 +173,6 @@ export function Dashboard() {
   const isKoperasiUser = isKoperasiRole(userRole);
   const isResepsionisUser = isRecepRole(userRole);
 
-  const defaultPerspective: 'ALL' | 'RESEPSIONIS' | 'KEUANGAN' | 'TEKNISI' | 'QC' | 'KOPERASI' = 
-    isKeuanganUser ? 'KEUANGAN' :
-    isTeknisiUser ? 'TEKNISI' :
-    isQcUser ? 'QC' :
-    isKoperasiUser ? 'KOPERASI' :
-    isResepsionisUser ? 'RESEPSIONIS' : 'ALL';
-
-  const [activePerspective, setActivePerspective] = useState<'ALL' | 'RESEPSIONIS' | 'KEUANGAN' | 'TEKNISI' | 'QC' | 'KOPERASI'>(defaultPerspective);
 
   // Perhitungan Keuangan & PNBP untuk Tampilan Akun Keuangan & Pimpinan (100% Sinkron dengan Laporan & Kwitansi)
   const financialStats = useMemo(() => {
@@ -834,8 +826,6 @@ export function Dashboard() {
       {/* 0. RUANG KERJA TERPADU SESUAI PERAN AKUN & ZONA TUGAS */}
       <RoleWorkspaceBanner
         currentUser={currentUser}
-        activePerspective={activePerspective}
-        setActivePerspective={setActivePerspective}
         financialStats={financialStats}
         cateringStats={cateringStats}
         checkinTodayList={checkinTodayList}
@@ -902,14 +892,14 @@ export function Dashboard() {
           onOpenRoomDetail={(roomId) => openModal('modalRoomDetail', { roomId })}
         />
 
-        {/* PANEL KANAN DINAMIS SESUAI KEBUTUHAN AKUN:
+        {/* PANEL KANAN DINAMIS OTOMATIS SESUAI PERAN AKUN PETUGAS:
             - QC: Antrean Kendali Mutu & Kelaikan Kamar (QC Inspection Worklist)
             - Teknisi: Tiket Perbaikan Fasilitas & Kendala Sarpras
             - Keuangan: Monitoring Piutang & Penagihan Invoice PNBP
             - Koperasi: Worklist Dapur & Distribusi Katering Hari Ini
-            - Resepsionis / Super Admin: Registrasi & Manajemen Data Rombongan
+            - Resepsionis / Super Admin / Admin: Registrasi & Manajemen Data Rombongan
         */}
-        {(activePerspective === 'QC' || (activePerspective === 'ALL' && isQcUser && !isSuperAdminUser)) ? (
+        {(isQcUser && !isSuperAdminUser) ? (
           <QcWorklistPanel
             qcNeedAttentionRooms={qcNeedAttentionRooms}
             readyCleanRooms={readyCleanRooms}
@@ -917,20 +907,20 @@ export function Dashboard() {
             openModal={openModal}
             setActiveTab={setActiveTab}
           />
-        ) : (activePerspective === 'TEKNISI' || (activePerspective === 'ALL' && isTeknisiUser && !isSuperAdminUser)) ? (
+        ) : (isTeknisiUser && !isSuperAdminUser) ? (
           <TechnicianWorklistPanel
             urgentMaintenances={urgentMaintenances}
             activeMaintenances={activeMaintenances}
             openModal={openModal}
             setActiveTab={setActiveTab}
           />
-        ) : (activePerspective === 'KEUANGAN' || (activePerspective === 'ALL' && isKeuanganUser && !isSuperAdminUser)) ? (
+        ) : (isKeuanganUser && !isSuperAdminUser) ? (
           <FinancialBillingPanel
             financialStats={financialStats}
             openModal={openModal}
             setActiveTab={setActiveTab}
           />
-        ) : (activePerspective === 'KOPERASI' || (activePerspective === 'ALL' && isKoperasiUser && !isSuperAdminUser)) ? (
+        ) : (isKoperasiUser && !isSuperAdminUser) ? (
           <CateringWorklistPanel
             cateringStats={cateringStats}
             updateBreakfastStatus={updateBreakfastStatus}
@@ -961,7 +951,7 @@ export function Dashboard() {
 
       {/* 4. KALENDER RESERVASI & AGENDA OPERASIONAL TERPADU 
           (Khusus untuk Resepsionis, Keuangan, Admin & Super Admin; disembunyikan dari QC, Teknisi, dan Koperasi agar fokus pada tugas divisi) */}
-      {(isSuperAdminUser || (!isQcUser && !isTeknisiUser && !isKoperasiUser) || activePerspective === 'RESEPSIONIS' || activePerspective === 'ALL') && (
+      {(isSuperAdminUser || isResepsionisUser || isKeuanganUser || (!isQcUser && !isTeknisiUser && !isKoperasiUser)) && (
         <MonthlyReservationCalendar
           transactions={transactions}
           rooms={rooms}

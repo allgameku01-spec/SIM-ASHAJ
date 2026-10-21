@@ -1416,6 +1416,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } else if (
         event.type === 'presence:sync' ||
+        event.type === 'presence:update' ||
         event.type === 'presence:heartbeat' ||
         event.type === 'presence:leave'
       ) {

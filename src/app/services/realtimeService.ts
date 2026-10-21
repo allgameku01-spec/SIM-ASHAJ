@@ -18,9 +18,11 @@ export type RealtimeEventType =
   | 'init'
   | 'state:sync'
   | 'presence:sync'
+  | 'presence:update'
   | 'presence:heartbeat'
   | 'presence:leave'
   | 'session:upsert'
+  | 'session:update'
   | 'session:superseded'
   | 'session:clear'
   | 'chat:message'
@@ -93,6 +95,25 @@ class RealtimeService {
           this.pollNow();
         }
       });
+      // 5. Instantly inform server on tab close or navigation
+      window.addEventListener('beforeunload', () => {
+        try {
+          const userStr = sessionStorage.getItem('sim_haji_current_user') || localStorage.getItem('sim_haji_current_user');
+          if (userStr) {
+            const u = JSON.parse(userStr);
+            if (u && u.id) {
+              const body = JSON.stringify({
+                type: 'presence:leave',
+                payload: { userId: u.id },
+                clientId: this.clientId,
+              });
+              if ('sendBeacon' in navigator) {
+                navigator.sendBeacon('/api/realtime/event', new Blob([body], { type: 'application/json' }));
+              }
+            }
+          }
+        } catch (_) {}
+      });
     } catch (_) {}
   }
 
@@ -105,13 +126,25 @@ class RealtimeService {
       const es = new EventSource('/api/realtime/stream');
       this.eventSource = es;
 
-      es.onmessage = (event) => {
+      const handleRaw = (eventData: string) => {
         try {
-          const parsed = JSON.parse(event.data) as RealtimeEventPayload;
+          const parsed = JSON.parse(eventData) as RealtimeEventPayload;
           if (!parsed || parsed.senderClientId === this.clientId) return;
           this.handleIncomingEvent(parsed);
         } catch (_) {}
       };
+
+      // Standard message handler (matches broadcastSSE event: message)
+      es.onmessage = (event) => {
+        handleRaw(event.data);
+      };
+
+      // Specific named event listeners
+      es.addEventListener('init', (e: any) => handleRaw(e.data));
+      es.addEventListener('presence:update', (e: any) => handleRaw(e.data));
+      es.addEventListener('session:update', (e: any) => handleRaw(e.data));
+      es.addEventListener('chat:message', (e: any) => handleRaw(e.data));
+      es.addEventListener('state:sync', (e: any) => handleRaw(e.data));
 
       es.onerror = () => {
         es.close();
@@ -149,7 +182,7 @@ class RealtimeService {
           const newMap = new Map<string, OnlinePresenceInfo>();
           data.presences.forEach((p: OnlinePresenceInfo) => {
             if (p && p.userId) {
-              newMap.set(`${p.userId}___${p.clientId || 'srv'}`, {
+              newMap.set(p.userId, {
                 ...p,
                 lastSeenMs: p.lastSeenMs || now,
               });
@@ -158,8 +191,8 @@ class RealtimeService {
 
           // Pertahankan keberadaan diri sendiri jika baru saja mengirim heartbeat
           for (const [key, val] of this.presencesMap.entries()) {
-            if (val.clientId === this.clientId && now - val.lastSeenMs < 30000) {
-              newMap.set(key, val);
+            if (val.clientId === this.clientId && now - val.lastSeenMs < 25000) {
+              newMap.set(val.userId || key, val);
             }
           }
           this.presencesMap = newMap;
@@ -201,18 +234,34 @@ class RealtimeService {
       if (Array.isArray(event.payload.presences)) {
         event.payload.presences.forEach((p: OnlinePresenceInfo) => {
           if (p && p.userId) {
-            this.presencesMap.set(`${p.userId}___${p.clientId || 'srv'}`, {
+            this.presencesMap.set(p.userId, {
               ...p,
               lastSeenMs: p.lastSeenMs || now,
             });
           }
         });
       }
+    } else if (event.type === 'presence:update') {
+      const list: OnlinePresenceInfo[] = Array.isArray(event.payload)
+        ? event.payload
+        : Array.isArray(event.payload?.presences)
+        ? event.payload.presences
+        : [];
+      const newMap = new Map<string, OnlinePresenceInfo>();
+      list.forEach((p: OnlinePresenceInfo) => {
+        if (p && p.userId) {
+          newMap.set(p.userId, {
+            ...p,
+            lastSeenMs: p.lastSeenMs || now,
+          });
+        }
+      });
+      this.presencesMap = newMap;
     } else if (event.type === 'presence:sync' && Array.isArray(event.payload)) {
       const newMap = new Map<string, OnlinePresenceInfo>();
       event.payload.forEach((p: OnlinePresenceInfo) => {
         if (p && p.userId) {
-          newMap.set(`${p.userId}___${p.clientId || 'srv'}`, {
+          newMap.set(p.userId, {
             ...p,
             lastSeenMs: p.lastSeenMs || now,
           });
@@ -220,26 +269,19 @@ class RealtimeService {
       });
       // Pertahankan status lokal jika baru
       for (const [key, val] of this.presencesMap.entries()) {
-        if (val.clientId === this.clientId && now - val.lastSeenMs < 30000) {
+        if (val.clientId === this.clientId && now - val.lastSeenMs < 20000) {
           newMap.set(key, val);
         }
       }
       this.presencesMap = newMap;
     } else if (event.type === 'presence:heartbeat' && event.payload?.userId) {
       const p = event.payload as OnlinePresenceInfo;
-      this.presencesMap.set(`${p.userId}___${p.clientId || event.senderClientId || 'peer'}`, {
+      this.presencesMap.set(p.userId, {
         ...p,
         lastSeenMs: now,
       });
     } else if (event.type === 'presence:leave' && event.payload?.userId) {
-      for (const [key, val] of this.presencesMap.entries()) {
-        if (
-          val.userId === event.payload.userId &&
-          (event.payload.allDevices || !event.senderClientId || val.clientId === event.senderClientId)
-        ) {
-          this.presencesMap.delete(key);
-        }
-      }
+      this.presencesMap.delete(event.payload.userId);
     }
 
     this.notifyListeners(event);
@@ -250,7 +292,7 @@ class RealtimeService {
     const byUser = new Map<string, OnlinePresenceInfo>();
     for (const [key, p] of this.presencesMap.entries()) {
       const lastSeen = p.lastSeenMs || 0;
-      if (now - lastSeen > 120000) {
+      if (now - lastSeen > 20000) {
         this.presencesMap.delete(key);
         continue;
       }

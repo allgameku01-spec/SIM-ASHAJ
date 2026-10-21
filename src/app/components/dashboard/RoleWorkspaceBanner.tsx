@@ -7,8 +7,6 @@ import { useAppContext } from '../../store';
 
 interface RoleWorkspaceBannerProps {
   currentUser: any;
-  activePerspective: 'ALL' | 'RESEPSIONIS' | 'KEUANGAN' | 'TEKNISI' | 'QC' | 'KOPERASI';
-  setActivePerspective: (perspective: 'ALL' | 'RESEPSIONIS' | 'KEUANGAN' | 'TEKNISI' | 'QC' | 'KOPERASI') => void;
   financialStats: {
     totalPenerimaanPnbp: number;
     totalLunasCount: number;
@@ -51,8 +49,6 @@ interface RoleWorkspaceBannerProps {
 
 export function RoleWorkspaceBanner({
   currentUser,
-  activePerspective,
-  setActivePerspective,
   financialStats,
   cateringStats,
   checkinTodayList,
@@ -71,18 +67,6 @@ export function RoleWorkspaceBanner({
   const roleName = currentUser?.role || 'Pengguna';
   const assignedBuilding = currentUser?.assignedBuilding || 'Semua Gedung';
   const hasAssignedZone = assignedBuilding && !assignedBuilding.includes('Semua') && assignedBuilding !== '-';
-
-  const {
-    supabaseSyncState
-  } = useAppContext();
-
-  const lastSyncFormatted = supabaseSyncState?.lastSyncedAt
-    ? new Date(supabaseSyncState.lastSyncedAt).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      })
-    : null;
 
   // Badge style based on role
   const getRoleBadge = () => {
@@ -106,6 +90,44 @@ export function RoleWorkspaceBanner({
 
   const badge = getRoleBadge();
 
+  const { onlinePresences = [], openChat } = useAppContext();
+
+  // Deduplikasi presensi online per userId dengan validasi waktu aktif < 25 detik
+  const activeStaffList = React.useMemo(() => {
+    const list = Array.isArray(onlinePresences) ? onlinePresences : [];
+    const now = Date.now();
+    const map = new Map<string, any>();
+    for (const p of list) {
+      if (p && p.userId) {
+        if (!p.lastSeenMs || now - p.lastSeenMs <= 25000) {
+          map.set(p.userId, p);
+        }
+      }
+    }
+    // Pastikan user saat ini selalu tercatat aktif
+    if (currentUser?.id && !map.has(currentUser.id)) {
+      map.set(currentUser.id, {
+        userId: currentUser.id,
+        userName: currentUser.fullName || currentUser.username,
+        userRole: currentUser.role,
+        department: currentUser.department || 'Operasional',
+        activeTab: 'dashboard',
+      });
+    }
+    return Array.from(map.values());
+  }, [onlinePresences, currentUser]);
+
+  // Penentuan perspektif fokus otomatis berdasarkan peran akun yang login (tanpa tombol filter manual)
+  const effectivePerspective = React.useMemo(() => {
+    const roleLower = (roleName || '').toLowerCase();
+    if (roleLower.includes('keuangan') || roleLower.includes('bendahara')) return 'KEUANGAN';
+    if (roleLower.includes('teknisi')) return 'TEKNISI';
+    if (roleLower.includes('qc') || roleLower.includes('quality')) return 'QC';
+    if (roleLower.includes('koperasi') || roleLower.includes('konsumsi')) return 'KOPERASI';
+    if (roleLower.includes('resepsionis') || roleLower.includes('pelayanan')) return 'RESEPSIONIS';
+    return 'ALL'; // Super Admin & Admin melihat ringkasan menyeluruh terpadu
+  }, [roleName]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -6 }}
@@ -113,63 +135,23 @@ export function RoleWorkspaceBanner({
       transition={{ duration: 0.25 }}
       className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden"
     >
-      {/* Top Banner: Greeting, Role & Assigned Zone */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-hajj-900 text-white p-3.5 sm:p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
+      {/* Top Banner: Greeting, Role & Synchronized Live Online Presence (Tanpa Scroll Horizontal) */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-hajj-900 text-white p-3.5 sm:p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+        <div className="flex items-center space-x-3 min-w-0">
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/10 backdrop-blur-xs text-gold-400 border border-gold-400/30 flex items-center justify-center text-lg shrink-0 shadow-inner">
             <i className={`fa-solid ${badge.icon}`}></i>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm sm:text-base font-black text-white tracking-tight">
+              <h2 className="text-sm sm:text-base font-black text-white tracking-tight truncate">
                 Halo, {currentUser?.fullName || currentUser?.username || 'Petugas'}!
               </h2>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1.5 shadow-2xs ${badge.bg}`}>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1.5 shadow-2xs shrink-0 ${badge.bg}`}>
                 <i className={`fa-solid ${badge.icon} text-[9px]`}></i>
                 <span>{roleName}</span>
               </span>
-
-              {/* STATUS SYNC DENGAN DATABASE */}
-              <span
-                title={
-                  supabaseSyncState?.lastError
-                    ? `Gangguan sinkronisasi: ${supabaseSyncState.lastError}`
-                    : lastSyncFormatted
-                    ? `Terhubung ke Google Spreadsheet (Sinkron terakhir pukul ${lastSyncFormatted} WIB)`
-                    : 'Terhubung langsung dengan Database Google Spreadsheet'
-                }
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1.5 shadow-2xs ${
-                  supabaseSyncState?.isSyncing
-                    ? 'bg-blue-500/20 text-blue-200 border-blue-400/40'
-                    : supabaseSyncState?.lastError
-                    ? 'bg-rose-500/25 text-rose-200 border-rose-400/50'
-                    : 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
-                }`}
-              >
-                {supabaseSyncState?.isSyncing ? (
-                  <>
-                    <i className="fa-solid fa-arrows-rotate fa-spin text-[9px] text-blue-300"></i>
-                    <span>Sync Spreadsheet: Menyinkronkan...</span>
-                  </>
-                ) : supabaseSyncState?.lastError ? (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                    <i className="fa-solid fa-triangle-exclamation text-[9px] text-rose-300"></i>
-                    <span>Sync Spreadsheet: Gangguan Koneksi</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    <i className="fa-solid fa-file-excel text-[9px] text-emerald-300"></i>
-                    <span>
-                      Sync Spreadsheet: Terhubung
-                      {lastSyncFormatted ? ` (${lastSyncFormatted})` : ''}
-                    </span>
-                  </>
-                )}
-              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-300">
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-300">
               <span>Departemen: <strong>{currentUser?.department || 'Operasional'}</strong></span>
               {hasAssignedZone && (
                 <>
@@ -184,85 +166,54 @@ export function RoleWorkspaceBanner({
           </div>
         </div>
 
-        {/* Perspective Switcher Buttons */}
-        <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl border border-white/10 overflow-x-auto max-w-full text-xs self-start md:self-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActivePerspective('ALL')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'ALL'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-            title="Tampilan Lengkap Semua Divisi"
-          >
-            <i className="fa-solid fa-layer-group text-xs text-purple-400"></i>
-            <span>Semua</span>
-          </button>
+        {/* Status Petugas Online Real-Time yang Sinkron, Rapi, & Jelas (Tanpa Scroll Horizontal) */}
+        <div className="flex items-center gap-2.5 bg-black/40 px-3 py-2 rounded-xl border border-white/10 text-xs shrink-0 self-start md:self-auto">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-white text-xs">
+                  {activeStaffList.length} Petugas Online
+                </span>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.2 rounded border border-emerald-400/30">
+                  Sinkron
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-300 block">
+                {activeStaffList.length > 1 ? `${activeStaffList.length} akun aktif bertugas` : 'Sesi Anda aktif'}
+              </span>
+            </div>
+          </div>
+
+          {/* Avatar stack petugas online */}
+          <div className="flex items-center -space-x-1.5 ml-1">
+            {activeStaffList.slice(0, 4).map((p, idx) => (
+              <div
+                key={p.userId || idx}
+                title={`${p.userName} (${p.userRole || 'Petugas'} - ${p.department || 'Operasional'})`}
+                className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-600 to-gold-400 border-2 border-slate-900 text-slate-950 font-black text-[9px] flex items-center justify-center shadow-xs cursor-pointer"
+              >
+                {p.userName ? p.userName.charAt(0).toUpperCase() : 'P'}
+              </div>
+            ))}
+            {activeStaffList.length > 4 && (
+              <div className="w-6 h-6 rounded-full bg-slate-700 border-2 border-slate-900 text-white font-bold text-[9px] flex items-center justify-center">
+                +{activeStaffList.length - 4}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
-            onClick={() => setActivePerspective('RESEPSIONIS')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'RESEPSIONIS'
-                ? 'bg-white text-blue-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
+            onClick={() => openChat?.()}
+            className="ml-1 px-2.5 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Buka Panel Obrolan & Kontak Petugas Online"
           >
-            <i className="fa-solid fa-bell-concierge text-xs text-blue-400"></i>
-            <span>Resepsionis</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActivePerspective('KEUANGAN')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'KEUANGAN'
-                ? 'bg-white text-emerald-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <i className="fa-solid fa-coins text-xs text-emerald-400"></i>
-            <span>Keuangan</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActivePerspective('TEKNISI')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'TEKNISI'
-                ? 'bg-white text-amber-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <i className="fa-solid fa-wrench text-xs text-amber-400"></i>
-            <span>Teknisi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActivePerspective('QC')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'QC'
-                ? 'bg-white text-teal-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <i className="fa-solid fa-clipboard-check text-xs text-teal-400"></i>
-            <span>QC</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActivePerspective('KOPERASI')}
-            className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activePerspective === 'KOPERASI'
-                ? 'bg-white text-rose-900 shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <i className="fa-solid fa-utensils text-xs text-rose-400"></i>
-            <span>Koperasi</span>
+            <i className="fa-solid fa-comments text-gold-300 text-[11px]"></i>
+            <span className="hidden sm:inline">Chat</span>
           </button>
         </div>
       </div>
@@ -270,7 +221,7 @@ export function RoleWorkspaceBanner({
       {/* Role-Tailored Dynamic Content Area */}
       <div className="p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800">
         {/* PERSPECTIVE: KEUANGAN */}
-        {activePerspective === 'KEUANGAN' && (
+        {effectivePerspective === 'KEUANGAN' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -340,7 +291,7 @@ export function RoleWorkspaceBanner({
         )}
 
         {/* PERSPECTIVE: TEKNISI */}
-        {activePerspective === 'TEKNISI' && (
+        {effectivePerspective === 'TEKNISI' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -401,7 +352,7 @@ export function RoleWorkspaceBanner({
         )}
 
         {/* PERSPECTIVE: QUALITY CONTROL (QC) */}
-        {activePerspective === 'QC' && (
+        {effectivePerspective === 'QC' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -466,7 +417,7 @@ export function RoleWorkspaceBanner({
         )}
 
         {/* PERSPECTIVE: KOPERASI & KONSUMSI */}
-        {activePerspective === 'KOPERASI' && (
+        {effectivePerspective === 'KOPERASI' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -529,7 +480,7 @@ export function RoleWorkspaceBanner({
         )}
 
         {/* PERSPECTIVE: RESEPSIONIS */}
-        {activePerspective === 'RESEPSIONIS' && (
+        {effectivePerspective === 'RESEPSIONIS' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -590,7 +541,7 @@ export function RoleWorkspaceBanner({
         )}
 
         {/* PERSPECTIVE: ALL (EXECUTIVE & PIMPINAN) */}
-        {activePerspective === 'ALL' && (
+        {effectivePerspective === 'ALL' && (
           <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-bold text-slate-700 dark:text-slate-300">Ringkasan Operasional Hari Ini:</span>
@@ -611,8 +562,9 @@ export function RoleWorkspaceBanner({
               </span>
             </div>
 
-            <span className="text-[11px] text-slate-500 italic">
-              Klik tab di pojok kanan atas untuk memfokuskan dashboard ke divisi tertentu.
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+              <i className="fa-solid fa-circle-check text-[10px]"></i>
+              <span>Sistem Operasional Terpadu &amp; Terverifikasi</span>
             </span>
           </div>
         )}

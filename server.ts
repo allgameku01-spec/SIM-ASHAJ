@@ -80,30 +80,43 @@ const realtimeState: RealtimeState = {
 const sseClients = new Set<Response>();
 
 function broadcastSSE(event: string, data: any) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const wrappedPayload = {
+    type: event,
+    payload: data,
+    timestamp: Date.now(),
+  };
+  const jsonStr = JSON.stringify(wrappedPayload);
+  // Send as both named event and standard message event for maximum EventSource compatibility
+  const chunk = `event: ${event}\ndata: ${jsonStr}\n\nevent: message\ndata: ${jsonStr}\n\n`;
   for (const client of sseClients) {
     try {
-      client.write(payload);
+      client.write(chunk);
     } catch {
       sseClients.delete(client);
     }
   }
 }
 
-// Clean up stale presences every 60s
+function getActivePresencesList(): Presence[] {
+  const now = Date.now();
+  // Filter active within 20 seconds for clear, fast, and accurate online detection
+  return Object.values(realtimeState.presences).filter((p) => now - p.lastSeenMs <= 20000);
+}
+
+// Clean up stale presences every 3 seconds for responsive online/offline accuracy
 setInterval(() => {
   const now = Date.now();
   let changed = false;
-  for (const [key, p] of Object.entries(realtimeState.presences)) {
-    if (now - p.lastSeenMs > 120000) {
-      delete realtimeState.presences[key];
+  for (const [userId, p] of Object.entries(realtimeState.presences)) {
+    if (now - p.lastSeenMs > 20000) {
+      delete realtimeState.presences[userId];
       changed = true;
     }
   }
   if (changed) {
-    broadcastSSE('presence:update', { presences: Object.values(realtimeState.presences) });
+    broadcastSSE('presence:update', { presences: getActivePresencesList() });
   }
-}, 60000);
+}, 3000);
 
 // Heartbeat to keep SSE connections alive
 setInterval(() => {
@@ -326,7 +339,7 @@ app.get('/api/realtime/stream', (req: Request, res: Response) => {
 
   // Send initial connected event & current state
   const initData = {
-    presences: Object.values(realtimeState.presences),
+    presences: getActivePresencesList(),
     workSessions: realtimeState.workSessions,
     chatChannels: realtimeState.chatChannels,
     chatMessages: realtimeState.chatMessages.slice(-50),
@@ -348,22 +361,20 @@ app.post('/api/realtime/event', (req: Request, res: Response) => {
   const { type, payload, clientId } = req.body || {};
   if (!type) return res.status(400).json({ error: 'Missing event type' });
 
-  // Handle presence
+  // Handle presence (Keyed by unique userId to prevent duplicate counts)
   if (type === 'presence:heartbeat' && payload?.userId) {
-    const key = `${payload.userId}___${clientId || 'default'}`;
-    realtimeState.presences[key] = {
+    realtimeState.presences[payload.userId] = {
+      ...realtimeState.presences[payload.userId],
       ...payload,
       clientId: clientId || 'default',
       lastSeenMs: Date.now(),
     };
-    broadcastSSE('presence:update', { presences: Object.values(realtimeState.presences) });
+    broadcastSSE('presence:update', { presences: getActivePresencesList() });
   } else if (type === 'presence:leave' || type === 'presence:logout') {
-    for (const [k, p] of Object.entries(realtimeState.presences)) {
-      if (p.userId === payload?.userId && (!clientId || p.clientId === clientId || payload?.allDevices)) {
-        delete realtimeState.presences[k];
-      }
+    if (payload?.userId) {
+      delete realtimeState.presences[payload.userId];
     }
-    broadcastSSE('presence:update', { presences: Object.values(realtimeState.presences) });
+    broadcastSSE('presence:update', { presences: getActivePresencesList() });
   }
 
   // Handle session updates
@@ -403,7 +414,7 @@ app.post('/api/realtime/event', (req: Request, res: Response) => {
 app.get('/api/realtime/state', (_req: Request, res: Response) => {
   res.json({
     ok: true,
-    presences: Object.values(realtimeState.presences),
+    presences: getActivePresencesList(),
     workSessions: realtimeState.workSessions,
     chatChannels: realtimeState.chatChannels,
     chatMessages: realtimeState.chatMessages,

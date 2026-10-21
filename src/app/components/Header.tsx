@@ -135,16 +135,24 @@ export function Header() {
           </div>
 
           <div className="flex items-center space-x-1 sm:space-x-3 ml-auto shrink-0">
-            {/* Dark Mode Toggle & Notifications Compact Icon Buttons */}
+            {/* Dark Mode Toggle & Notifications Compact Action Buttons */}
             <div className="flex items-center space-x-1 sm:space-x-2 bg-white/10 p-1 sm:p-1.5 rounded-lg sm:rounded-xl border border-white/15">
+              {/* Interactive Theme Switch Button */}
               <button
                 type="button"
                 onClick={toggleDarkMode}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-white/15 hover:bg-white/25 text-gold-400 border border-white/20 flex items-center justify-center transition cursor-pointer shadow-xs"
-                title={isDarkMode ? "Mode Gelap aktif. Klik untuk beralih ke Mode Terang (Matahari)." : "Mode Terang aktif. Klik untuk beralih ke Mode Gelap (Bulan)."}
+                className={`flex items-center space-x-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md sm:rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer select-none hover:scale-105 active:scale-95 ${
+                  isDarkMode
+                    ? 'bg-slate-900/90 hover:bg-slate-900 text-amber-300 border border-amber-400/50 shadow-inner ring-1 ring-amber-400/20'
+                    : 'bg-amber-400 hover:bg-amber-300 text-slate-900 border border-amber-300 shadow-sm'
+                }`}
+                title={isDarkMode ? "Mode Gelap aktif. Klik untuk beralih ke Mode Terang." : "Mode Terang aktif. Klik untuk beralih ke Mode Gelap."}
                 aria-label={`Beralih mode tema, saat ini ${isDarkMode ? 'Mode Gelap' : 'Mode Terang'}`}
               >
-                <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-300 text-xs sm:text-sm' : 'fa-moon text-gold-300 text-xs sm:text-sm'}`}></i>
+                <i className={`fa-solid ${isDarkMode ? 'fa-moon text-amber-300' : 'fa-sun text-slate-900'} text-xs sm:text-sm`}></i>
+                <span className="hidden md:inline font-semibold text-[11px] tracking-wide">
+                  {isDarkMode ? 'Gelap' : 'Terang'}
+                </span>
               </button>
               <div className="h-3.5 sm:h-5 w-px bg-white/15"></div>
               <OperationalNotifications />
@@ -302,6 +310,49 @@ export function Header() {
                         <i className="fa-solid fa-user-pen text-emerald-600 dark:text-emerald-400"></i>
                         <span>Buka Pengaturan Profil Akun</span>
                       </button>
+                    </div>
+
+                    {/* 2c. Pengaturan Tema Tampilan (Mode Terang / Gelap) */}
+                    <div className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${
+                            isDarkMode 
+                              ? 'bg-amber-900/50 text-amber-300 border border-amber-500/40' 
+                              : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}>
+                            <i className={`fa-solid ${isDarkMode ? 'fa-moon' : 'fa-sun'}`}></i>
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block">
+                              Mode Tampilan ({isDarkMode ? 'Mode Gelap' : 'Mode Terang'})
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              {isDarkMode ? 'Nyaman untuk pencahayaan rendah / malam' : 'Cerah dan kontras tinggi untuk siang hari'}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Interactive Toggle Switch */}
+                        <button
+                          type="button"
+                          onClick={toggleDarkMode}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
+                            isDarkMode ? 'bg-amber-500' : 'bg-slate-300'
+                          }`}
+                          role="switch"
+                          aria-checked={isDarkMode}
+                          title={isDarkMode ? 'Klik untuk beralih ke Mode Terang' : 'Klik untuk beralih ke Mode Gelap'}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out flex items-center justify-center text-[10px] ${
+                              isDarkMode ? 'translate-x-5 text-amber-600' : 'translate-x-0 text-slate-500'
+                            }`}
+                          >
+                            <i className={`fa-solid ${isDarkMode ? 'fa-moon text-[9px]' : 'fa-sun text-[9px]'}`}></i>
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* 3b. Status Sync dengan Database (Google Spreadsheet Utama) */}
