@@ -1,0 +1,19 @@
+[build]
+  command = "bun run build"
+  publish = "dist"
+
+# Endpoint API yang tidak ditangani function mengembalikan 404 (bukan halaman SPA)
+[[redirects]]
+  from = "/api/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  framework = "#custom"
+  command = "npx vite --port 5173"
+  targetPort = 5173
