@@ -136,6 +136,16 @@ export function FloatingChatPanel() {
     };
   }, [currentUser, isChatOpen, activeChatChannelId, workSessions, chatChannels, users]);
 
+  // Polling seketika saat modal Mulai Chat Pribadi terbuka untuk sinkronisasi live
+  useEffect(() => {
+    if (!isNewChatModalOpen) return;
+    realtimeService.pollNow();
+    const iv = setInterval(() => {
+      realtimeService.pollNow();
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [isNewChatModalOpen]);
+
   // Otomatis tutup chat saat klik di luar panel chat
   useEffect(() => {
     if (!isChatOpen) return;
@@ -167,29 +177,68 @@ export function FloatingChatPanel() {
 
   const isCurrentUserManager = isManagerRole(currentUser.role);
 
-  // Real-Time Multi-Account Online Presence Engine (Sinkron Cepat & Jelas: 25 detik)
-  const isUserOnline = (userId: string): boolean => {
-    if (userId === currentUser.id) return true;
+  // Real-Time Multi-Account Online Presence Engine (Sinkron Cepat & Jelas)
+  const isUserOnline = (userIdOrObj: string | any): boolean => {
+    if (!userIdOrObj) return false;
+    const targetId = typeof userIdOrObj === 'string' ? userIdOrObj : userIdOrObj.id;
+    const userObj = typeof userIdOrObj === 'object'
+      ? userIdOrObj
+      : users.find(u => u.id === targetId || u.username === targetId);
+
+    const targetUsername = userObj?.username;
+    const targetFullName = userObj?.fullName;
+
+    // Sesi akun sendiri selalu dianggap aktif
+    if (
+      targetId === currentUser.id ||
+      (targetUsername && targetUsername.toLowerCase() === currentUser.username?.toLowerCase())
+    ) {
+      return true;
+    }
+
     const now = Date.now();
-    // 1. Check live real-time presence heartbeats across concurrent devices (< 25 detik)
+
+    // 1. Cek live real-time presence heartbeats di server & BroadcastChannel
     const hasLivePresence = onlinePresences.some(p => {
-      if (p.userId !== userId) return false;
+      if (!p) return false;
+      const pId = String(p.userId || '').toLowerCase();
+      const pName = String(p.userName || '').toLowerCase();
+
+      const matchId = Boolean(targetId && pId === targetId.toLowerCase());
+      const matchUsername = Boolean(targetUsername && pId === targetUsername.toLowerCase());
+      const matchName = Boolean(targetFullName && pName === targetFullName.toLowerCase());
+
+      if (!matchId && !matchUsername && !matchName) return false;
+
       const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
-      return !lastSeen || (now - lastSeen <= 25000);
+      return !lastSeen || (now - lastSeen <= 60000);
     });
     if (hasLivePresence) return true;
 
-    // 2. Check active work sessions with recent heartbeat
+    // 2. Cek sesi kerja aktif di database & spreadsheet
     const hasActiveShift = workSessions.some(s => {
-      if (s.userId !== userId || s.status !== 'AKTIF' || s.logoutTime) return false;
+      if (!s || s.status !== 'AKTIF' || s.logoutTime) return false;
+      const sId = String(s.userId || '').toLowerCase();
+      const sName = String(s.userName || '').toLowerCase();
+
+      const matchId = Boolean(targetId && sId === targetId.toLowerCase());
+      const matchUsername = Boolean(targetUsername && sId === targetUsername.toLowerCase());
+      const matchName = Boolean(targetFullName && sName === targetFullName.toLowerCase());
+
+      if (!matchId && !matchUsername && !matchName) return false;
+
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        if (!isNaN(hb)) return now - hb <= 30000;
+        if (!isNaN(hb)) return now - hb <= 60000;
       }
-      return false;
+      if (s.loginTime) {
+        const start = parseLocalTimeString(s.loginTime).getTime();
+        if (!isNaN(start) && now - start <= 180000) return true;
+      }
+      return true;
     });
-    if (hasActiveShift) return true;
-    return false;
+
+    return hasActiveShift;
   };
 
   // Get active session info for a user
@@ -555,8 +604,15 @@ export function FloatingChatPanel() {
               <span className="text-[11px] font-bold tracking-tight text-white whitespace-nowrap">
                 Chat Operasional
               </span>
-              <span className="text-[9px] text-gold-300 font-medium mt-0.5">
-                {onlineColleaguesCount + 1} Akun Online
+              <span className="text-[9px] mt-0.5 flex items-center gap-1 font-medium text-slate-300">
+                {onlineColleaguesCount > 0 ? (
+                  <span className="text-gold-300 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>{onlineColleaguesCount} Rekan Online</span>
+                  </span>
+                ) : (
+                  <span>Sesi Anda Aktif</span>
+                )}
               </span>
             </div>
 
@@ -607,7 +663,8 @@ export function FloatingChatPanel() {
                   <p className="text-[10px] text-slate-300 flex items-center space-x-1 mt-0.5 truncate">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0"></span>
                     <span className="truncate">
-                      {currentUser.fullName} ({currentUser.role}) • {onlineColleaguesCount + 1} Aktif
+                      {currentUser.fullName} ({currentUser.role})
+                      {onlineColleaguesCount > 0 ? ` • ${onlineColleaguesCount} Rekan Online` : ' • Sesi Anda Aktif'}
                     </span>
                   </p>
                 </div>
@@ -659,10 +716,15 @@ export function FloatingChatPanel() {
                   <i className="fa-solid fa-file-excel text-[10px] text-emerald-400"></i>
                   <span>Spreadsheet: Tersinkron</span>
                 </span>
-                <span className="text-slate-500">•</span>
-                <span className="text-gold-300 font-medium truncate">
-                  {onlineColleaguesCount + 1} Akun Online
-                </span>
+                {onlineColleaguesCount > 0 && (
+                  <>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-gold-300 font-bold flex items-center gap-1 truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>{onlineColleaguesCount} Rekan Online</span>
+                    </span>
+                  </>
+                )}
               </div>
               <button
                 type="button"
@@ -1076,8 +1138,11 @@ export function FloatingChatPanel() {
                   <div className="px-3 pt-2.5 pb-2 bg-white border-b border-slate-200 shrink-0">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Klik Akun untuk Chat Pribadi 2 Arah ({onlineColleaguesCount} Aktif)</span>
+                        <span className={`w-2 h-2 rounded-full ${onlineColleaguesCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                        <span>
+                          Klik Akun untuk Chat Pribadi 2 Arah
+                          {onlineColleaguesCount > 0 && ` (${onlineColleaguesCount} Rekan Online)`}
+                        </span>
                       </span>
                       <button
                         type="button"
@@ -1341,9 +1406,19 @@ export function FloatingChatPanel() {
                   <i className="fa-solid fa-user-plus"></i>
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-white">Mulai Chat Pribadi (2 Arah)</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-xs text-white">Mulai Chat Pribadi (2 Arah)</h4>
+                    {onlineColleaguesCount > 0 && (
+                      <span className="text-[10px] bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>{onlineColleaguesCount} Online</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-300">
-                    Pilih akun rekan untuk pesan personal
+                    {onlineColleaguesCount > 0
+                      ? `${onlineColleaguesCount} rekan online & siap dihubungi`
+                      : 'Pilih akun rekan kerja untuk pesan personal'}
                   </p>
                 </div>
               </div>
@@ -1380,7 +1455,7 @@ export function FloatingChatPanel() {
                   );
                 })
                 .map(u => {
-                  const online = isUserOnline(u.id);
+                  const online = isUserOnline(u);
                   const activeSess = getUserActiveSession(u.id);
 
                   return (
@@ -1403,7 +1478,7 @@ export function FloatingChatPanel() {
                           </div>
                           <span
                             className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                              online ? 'bg-emerald-500' : 'bg-slate-300'
+                              online ? 'bg-emerald-500 shadow-xs' : 'bg-slate-300'
                             }`}
                           />
                         </div>
@@ -1424,13 +1499,20 @@ export function FloatingChatPanel() {
                       </div>
                       <div className="flex flex-col items-end shrink-0 ml-2">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             online
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-500'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
                           }`}
                         >
-                          {online ? '● Aktif' : 'Offline'}
+                          {online ? (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Online</span>
+                            </>
+                          ) : (
+                            <span>Offline</span>
+                          )}
                         </span>
                         <span className="text-[9px] text-hajj-700 font-bold mt-1 group-hover:underline">
                           Kirim Pesan →

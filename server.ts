@@ -99,8 +99,8 @@ function broadcastSSE(event: string, data: any) {
 
 function getActivePresencesList(): Presence[] {
   const now = Date.now();
-  // Filter active within 20 seconds for clear, fast, and accurate online detection
-  return Object.values(realtimeState.presences).filter((p) => now - p.lastSeenMs <= 20000);
+  // Filter active within 60 seconds (prevents premature offline caused by browser background tab throttling)
+  return Object.values(realtimeState.presences).filter((p) => now - p.lastSeenMs <= 60000);
 }
 
 // Clean up stale presences every 3 seconds for responsive online/offline accuracy
@@ -108,7 +108,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [userId, p] of Object.entries(realtimeState.presences)) {
-    if (now - p.lastSeenMs > 20000) {
+    if (now - p.lastSeenMs > 60000) {
       delete realtimeState.presences[userId];
       changed = true;
     }

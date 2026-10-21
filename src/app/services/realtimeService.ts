@@ -292,7 +292,7 @@ class RealtimeService {
     const byUser = new Map<string, OnlinePresenceInfo>();
     for (const [key, p] of this.presencesMap.entries()) {
       const lastSeen = p.lastSeenMs || 0;
-      if (now - lastSeen > 20000) {
+      if (now - lastSeen > 60000) {
         this.presencesMap.delete(key);
         continue;
       }

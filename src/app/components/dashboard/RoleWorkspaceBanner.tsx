@@ -92,14 +92,14 @@ export function RoleWorkspaceBanner({
 
   const { onlinePresences = [], openChat } = useAppContext();
 
-  // Deduplikasi presensi online per userId dengan validasi waktu aktif < 25 detik
+  // Deduplikasi presensi online per userId dengan validasi waktu aktif < 60 detik
   const activeStaffList = React.useMemo(() => {
     const list = Array.isArray(onlinePresences) ? onlinePresences : [];
     const now = Date.now();
     const map = new Map<string, any>();
     for (const p of list) {
       if (p && p.userId) {
-        if (!p.lastSeenMs || now - p.lastSeenMs <= 25000) {
+        if (!p.lastSeenMs || now - p.lastSeenMs <= 60000) {
           map.set(p.userId, p);
         }
       }
@@ -116,6 +116,19 @@ export function RoleWorkspaceBanner({
     }
     return Array.from(map.values());
   }, [onlinePresences, currentUser]);
+
+  // Jumlah rekan kerja lain yang online (selain diri sendiri)
+  const otherOnlineStaffCount = React.useMemo(() => {
+    return activeStaffList.filter(p => {
+      if (!p) return false;
+      const pId = String(p.userId || '').toLowerCase();
+      const pName = String(p.userName || '').toLowerCase();
+      const myId = String(currentUser?.id || '').toLowerCase();
+      const myUsername = String(currentUser?.username || '').toLowerCase();
+      const myName = String(currentUser?.fullName || '').toLowerCase();
+      return pId !== myId && pId !== myUsername && pName !== myName;
+    }).length;
+  }, [activeStaffList, currentUser]);
 
   // Penentuan perspektif fokus otomatis berdasarkan peran akun yang login (tanpa tombol filter manual)
   const effectivePerspective = React.useMemo(() => {
@@ -176,14 +189,14 @@ export function RoleWorkspaceBanner({
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-white text-xs">
-                  {activeStaffList.length} Petugas Online
+                  {otherOnlineStaffCount > 0 ? `${otherOnlineStaffCount} Rekan Online` : 'Sesi Anda Aktif'}
                 </span>
                 <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.2 rounded border border-emerald-400/30">
                   Sinkron
                 </span>
               </div>
               <span className="text-[10px] text-slate-300 block">
-                {activeStaffList.length > 1 ? `${activeStaffList.length} akun aktif bertugas` : 'Sesi Anda aktif'}
+                {otherOnlineStaffCount > 0 ? `${activeStaffList.length} akun aktif bertugas` : 'Menunggu rekan kerja lain online'}
               </span>
             </div>
           </div>
