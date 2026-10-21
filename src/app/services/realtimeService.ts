@@ -46,8 +46,6 @@ class RealtimeService {
   private clientId: string;
   private listeners: Set<RealtimeEventListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
-  private eventSource: EventSource | null = null;
-  private reconnectTimer: any = null;
   private pollingTimer: any = null;
   private isPolling = false;
   private isInitialized = false;
@@ -79,11 +77,8 @@ class RealtimeService {
       console.warn('BroadcastChannel warning:', e);
     }
 
-    // 2. Server-Sent Events (SSE) Stream to Express Server (/api/realtime/stream)
-    this.connectSSE();
-
-    // 3. Bulletproof Automatic HTTP Polling Fallback (setiap 2.5 detik)
-    // Memastikan koneksi multi-perangkat / beda laptop selalu sinkron 100% meskipun SSE terhalang proxy
+    // 2. Sinkronisasi multi-perangkat melalui polling HTTP ke Netlify Database (/api/realtime/state)
+    // Stream SSE tidak dipakai karena Netlify Functions tidak menahan koneksi panjang.
     this.startPollingLoop();
 
     // 4. Polling seketika saat window kembali fokus / tab aktif
@@ -117,51 +112,13 @@ class RealtimeService {
     } catch (_) {}
   }
 
-  private connectSSE() {
-    if (typeof window === 'undefined' || !('EventSource' in window)) return;
-    try {
-      if (this.eventSource) {
-        this.eventSource.close();
-      }
-      const es = new EventSource('/api/realtime/stream');
-      this.eventSource = es;
-
-      const handleRaw = (eventData: string) => {
-        try {
-          const parsed = JSON.parse(eventData) as RealtimeEventPayload;
-          if (!parsed || parsed.senderClientId === this.clientId) return;
-          this.handleIncomingEvent(parsed);
-        } catch (_) {}
-      };
-
-      // Standard message handler (matches broadcastSSE event: message)
-      es.onmessage = (event) => {
-        handleRaw(event.data);
-      };
-
-      // Specific named event listeners
-      es.addEventListener('init', (e: any) => handleRaw(e.data));
-      es.addEventListener('presence:update', (e: any) => handleRaw(e.data));
-      es.addEventListener('session:update', (e: any) => handleRaw(e.data));
-      es.addEventListener('chat:message', (e: any) => handleRaw(e.data));
-      es.addEventListener('state:sync', (e: any) => handleRaw(e.data));
-
-      es.onerror = () => {
-        es.close();
-        this.eventSource = null;
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = setTimeout(() => this.connectSSE(), 3000);
-      };
-    } catch (_) {}
-  }
-
   private startPollingLoop() {
     if (this.pollingTimer) clearInterval(this.pollingTimer);
     // Jalankan poll pertama segera
     this.pollNow();
     this.pollingTimer = setInterval(() => {
-      this.pollState();
-    }, 2500);
+      if (document.visibilityState === 'visible') this.pollState();
+    }, 4000);
   }
 
   public async pollState(): Promise<void> {
