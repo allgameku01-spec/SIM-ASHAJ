@@ -236,7 +236,7 @@ class RealtimeService {
           if (p && p.userId) {
             this.presencesMap.set(p.userId, {
               ...p,
-              lastSeenMs: p.lastSeenMs || now,
+              lastSeenMs: now,
             });
           }
         });
@@ -252,10 +252,16 @@ class RealtimeService {
         if (p && p.userId) {
           newMap.set(p.userId, {
             ...p,
-            lastSeenMs: p.lastSeenMs || now,
+            lastSeenMs: now,
           });
         }
       });
+      // Pertahankan status lokal jika baru
+      for (const [key, val] of this.presencesMap.entries()) {
+        if (val.clientId === this.clientId && now - val.lastSeenMs < 30000) {
+          newMap.set(val.userId || key, val);
+        }
+      }
       this.presencesMap = newMap;
     } else if (event.type === 'presence:sync' && Array.isArray(event.payload)) {
       const newMap = new Map<string, OnlinePresenceInfo>();
@@ -263,14 +269,14 @@ class RealtimeService {
         if (p && p.userId) {
           newMap.set(p.userId, {
             ...p,
-            lastSeenMs: p.lastSeenMs || now,
+            lastSeenMs: now,
           });
         }
       });
       // Pertahankan status lokal jika baru
       for (const [key, val] of this.presencesMap.entries()) {
-        if (val.clientId === this.clientId && now - val.lastSeenMs < 20000) {
-          newMap.set(key, val);
+        if (val.clientId === this.clientId && now - val.lastSeenMs < 30000) {
+          newMap.set(val.userId || key, val);
         }
       }
       this.presencesMap = newMap;
@@ -292,7 +298,8 @@ class RealtimeService {
     const byUser = new Map<string, OnlinePresenceInfo>();
     for (const [key, p] of this.presencesMap.entries()) {
       const lastSeen = p.lastSeenMs || 0;
-      if (now - lastSeen > 60000) {
+      // Toleransi 90 detik untuk menjamin sinkronisasi lintas browser & tab background
+      if (now - lastSeen > 90000) {
         this.presencesMap.delete(key);
         continue;
       }
@@ -333,17 +340,13 @@ class RealtimeService {
 
     // 1. Update local presence cache if heartbeat/leave
     if (type === 'presence:heartbeat' && payload?.userId) {
-      this.presencesMap.set(`${payload.userId}___${this.clientId}`, {
+      this.presencesMap.set(payload.userId, {
         ...payload,
         clientId: this.clientId,
         lastSeenMs: Date.now(),
       });
     } else if (type === 'presence:leave' && payload?.userId) {
-      for (const [key, val] of this.presencesMap.entries()) {
-        if (val.userId === payload.userId && (payload.allDevices || val.clientId === this.clientId)) {
-          this.presencesMap.delete(key);
-        }
-      }
+      this.presencesMap.delete(payload.userId);
     }
 
     // 2. Broadcast to same-browser tabs immediately

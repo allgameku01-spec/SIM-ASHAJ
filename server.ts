@@ -180,13 +180,24 @@ function isValidGasUrl(url: string | undefined): boolean {
 // 2. Read Database (From Google Apps Script proxy or Local Fallback)
 app.get('/api/sheets/database', async (req: Request, res: Response) => {
   const sheetName = req.query.sheet as string;
+  const clientWebAppUrl = (req.query.webAppUrl as string)?.trim();
+  const effectiveWebAppUrl = isValidGasUrl(clientWebAppUrl) ? clientWebAppUrl : sheetConfig.webAppUrl;
+
+  // Auto-sync client webAppUrl to server config if valid and not yet saved
+  if (isValidGasUrl(clientWebAppUrl) && sheetConfig.webAppUrl !== clientWebAppUrl) {
+    sheetConfig.webAppUrl = clientWebAppUrl;
+    sheetConfig.isConfigured = true;
+    try {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(sheetConfig, null, 2));
+    } catch (_) {}
+  }
 
   // Only attempt external fetch if a valid Google Apps Script Web App URL is configured
-  if (isValidGasUrl(sheetConfig.webAppUrl)) {
+  if (isValidGasUrl(effectiveWebAppUrl)) {
     try {
       const targetUrl = sheetName
-        ? `${sheetConfig.webAppUrl}?sheet=${encodeURIComponent(sheetName)}`
-        : sheetConfig.webAppUrl;
+        ? `${effectiveWebAppUrl}?sheet=${encodeURIComponent(sheetName)}`
+        : effectiveWebAppUrl;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 18000);
@@ -231,7 +242,7 @@ app.get('/api/sheets/database', async (req: Request, res: Response) => {
     if (fs.existsSync(DB_FILE)) {
       const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
       return res.json({
-        status: isValidGasUrl(sheetConfig.webAppUrl) ? 'cached' : 'fallback',
+        status: isValidGasUrl(effectiveWebAppUrl) ? 'cached' : 'fallback',
         source: 'local_database',
         data,
         updatedAt: new Date().toISOString(),
@@ -246,6 +257,56 @@ app.get('/api/sheets/database', async (req: Request, res: Response) => {
     message: 'Database lokal kosong dan Web App URL belum tersambung.',
     data: null,
   });
+});
+
+// 2b. Universal Backend Proxy for Google Apps Script (100% bypasses browser CORS & iframe redirect limitations)
+app.all('/api/sheets/proxy', async (req: Request, res: Response) => {
+  const targetUrl =
+    (req.query.url as string)?.trim() ||
+    (req.body?.webAppUrl as string)?.trim() ||
+    sheetConfig.webAppUrl;
+
+  if (!targetUrl || !isValidGasUrl(targetUrl)) {
+    return res.status(400).json({
+      error: 'Format URL Web App Google Apps Script tidak valid. Harus diawali dengan https://script.google.com/macros/s/... dan berakhiran /exec',
+    });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const fetchOptions: RequestInit = {
+      method: req.method === 'GET' ? 'GET' : 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    };
+
+    if (req.method === 'POST') {
+      const payload = { ...req.body };
+      delete payload.webAppUrl;
+      fetchOptions.body = JSON.stringify(payload);
+    }
+
+    const gasRes = await fetch(targetUrl, fetchOptions);
+    clearTimeout(timeoutId);
+
+    const text = await gasRes.text();
+    try {
+      const json = JSON.parse(text);
+      return res.json(json);
+    } catch (_) {
+      return res.send(text);
+    }
+  } catch (err: any) {
+    return res.status(502).json({
+      error: `Gagal menghubungi Google Apps Script: ${err?.message || 'Koneksi gagal'}`,
+      isCorsIssue: false,
+    });
+  }
 });
 
 // 3. Save Database (To Local Cache & Sync to Google Spreadsheet)

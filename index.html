@@ -16,6 +16,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
       (function() {
+        // Redam pesan error unhandled rejection khusus dari Vite HMR WebSocket di lingkungan iframe sandbox AI Studio
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event.reason;
+          var msg = reason && (reason.message || String(reason));
+          if (msg && (msg.indexOf('WebSocket closed without opened') !== -1 || msg.indexOf('@vite/client') !== -1)) {
+            event.preventDefault();
+          }
+        });
+
         try {
           if (localStorage.getItem('upt_haji_dark_mode') === 'true') {
             document.documentElement.classList.add('dark');

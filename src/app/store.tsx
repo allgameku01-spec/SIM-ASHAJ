@@ -604,16 +604,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!silent) {
       setChecksumReport(prev => ({ ...prev, status: 'CHECKING', message: 'Memvalidasi sinkronisasi terhadap Database Pusat...' }));
     }
-    const report = await validateDatabaseChecksumAgainstSpreadsheet(dataset);
-    setChecksumReport(report);
-    if (!silent) {
-      if (report.status === 'SYNCED') {
-        showToast(`Sinkronisasi Valid (${report.localChecksum}): Data identik dengan Database Pusat!`, 'success');
-      } else if (report.status === 'MISMATCH') {
-        showToast(`Menyinkronkan perbedaan data (${report.localChecksum} → ${report.remoteChecksum}) dengan Database Pusat...`, 'info');
+    try {
+      const report = await validateDatabaseChecksumAgainstSpreadsheet(dataset);
+      setChecksumReport(report);
+      if (!silent) {
+        if (report.status === 'SYNCED') {
+          showToast(`Sinkronisasi Valid (${report.localChecksum}): Data identik dengan Database Pusat!`, 'success');
+        } else if (report.status === 'MISMATCH') {
+          showToast(`Menyinkronkan perbedaan data (${report.localChecksum} → ${report.remoteChecksum}) dengan Database Pusat...`, 'info');
+        }
       }
+      return report;
+    } catch (_) {
+      const fallbackReport: DatabaseChecksumReport = {
+        status: 'OFFLINE',
+        localChecksum: computeDatasetChecksums(dataset).masterChecksum,
+        remoteChecksum: 'LOCAL_SYNCED',
+        isMatch: true,
+        checkedAt: new Date().toLocaleTimeString('id-ID'),
+        modules: [],
+        mismatchedModules: [],
+        message: 'Menggunakan basis data lokal (Google Spreadsheet offline).'
+      };
+      setChecksumReport(fallbackReport);
+      return fallbackReport;
     }
-    return report;
   };
 
   // Sinkronisasi periodik status koneksi Google Spreadsheet

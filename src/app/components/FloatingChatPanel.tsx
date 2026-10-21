@@ -177,63 +177,70 @@ export function FloatingChatPanel() {
 
   const isCurrentUserManager = isManagerRole(currentUser.role);
 
-  // Real-Time Multi-Account Online Presence Engine (Sinkron Cepat & Jelas)
+  // Real-Time Multi-Account Online Presence Engine (Sinkron Cepat, Presisi & Bebas Skew)
   const isUserOnline = (userIdOrObj: string | any): boolean => {
     if (!userIdOrObj) return false;
-    const targetId = typeof userIdOrObj === 'string' ? userIdOrObj : userIdOrObj.id;
+    const targetId = String(typeof userIdOrObj === 'string' ? userIdOrObj : userIdOrObj?.id || '').trim();
     const userObj = typeof userIdOrObj === 'object'
       ? userIdOrObj
       : users.find(u => u.id === targetId || u.username === targetId);
 
-    const targetUsername = userObj?.username;
-    const targetFullName = userObj?.fullName;
+    const targetUsername = String(userObj?.username || (typeof userIdOrObj === 'string' ? userIdOrObj : '')).trim();
+    const targetFullName = String(userObj?.fullName || '').trim();
 
-    // Sesi akun sendiri selalu dianggap aktif
+    // Sesi akun sendiri selalu dianggap aktif secara lokal
     if (
-      targetId === currentUser.id ||
+      (targetId && targetId === currentUser.id) ||
       (targetUsername && targetUsername.toLowerCase() === currentUser.username?.toLowerCase())
     ) {
       return true;
     }
 
+    const targetIdLower = targetId.toLowerCase();
+    const targetUsernameLower = targetUsername.toLowerCase();
+    const targetNameLower = targetFullName.toLowerCase();
+    const targetCleanKey = targetUsernameLower.replace(/^(u-|usr-|user-)/, '');
+
     const now = Date.now();
 
-    // 1. Cek live real-time presence heartbeats di server & BroadcastChannel
+    // 1. Cek live real-time presence heartbeats di server & SSE / BroadcastChannel
     const hasLivePresence = onlinePresences.some(p => {
       if (!p) return false;
-      const pId = String(p.userId || '').toLowerCase();
-      const pName = String(p.userName || '').toLowerCase();
+      const pId = String(p.userId || '').trim().toLowerCase();
+      const pName = String(p.userName || '').trim().toLowerCase();
+      const pCleanKey = pId.replace(/^(u-|usr-|user-)/, '');
 
-      const matchId = Boolean(targetId && pId === targetId.toLowerCase());
-      const matchUsername = Boolean(targetUsername && pId === targetUsername.toLowerCase());
-      const matchName = Boolean(targetFullName && pName === targetFullName.toLowerCase());
+      const matchId = Boolean(targetIdLower && pId === targetIdLower);
+      const matchUsername = Boolean(targetUsernameLower && pId === targetUsernameLower);
+      const matchClean = Boolean(targetCleanKey && pCleanKey === targetCleanKey);
+      const matchName = Boolean(targetNameLower && (pName === targetNameLower || pName.includes(targetNameLower) || targetNameLower.includes(pName)));
 
-      if (!matchId && !matchUsername && !matchName) return false;
+      if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
       const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
-      return !lastSeen || (now - lastSeen <= 60000);
+      // Toleransi 90 detik untuk memastikan stabilitas koneksi background tab
+      return !lastSeen || (now - lastSeen <= 90000);
     });
     if (hasLivePresence) return true;
 
     // 2. Cek sesi kerja aktif di database & spreadsheet
     const hasActiveShift = workSessions.some(s => {
       if (!s || s.status !== 'AKTIF' || s.logoutTime) return false;
-      const sId = String(s.userId || '').toLowerCase();
-      const sName = String(s.userName || '').toLowerCase();
+      const sId = String(s.userId || '').trim().toLowerCase();
+      const sName = String(s.userName || '').trim().toLowerCase();
+      const sCleanKey = sId.replace(/^(u-|usr-|user-)/, '');
 
-      const matchId = Boolean(targetId && sId === targetId.toLowerCase());
-      const matchUsername = Boolean(targetUsername && sId === targetUsername.toLowerCase());
-      const matchName = Boolean(targetFullName && sName === targetFullName.toLowerCase());
+      const matchId = Boolean(targetIdLower && sId === targetIdLower);
+      const matchUsername = Boolean(targetUsernameLower && sId === targetUsernameLower);
+      const matchClean = Boolean(targetCleanKey && sCleanKey === targetCleanKey);
+      const matchName = Boolean(targetNameLower && (sName === targetNameLower || sName.includes(targetNameLower) || targetNameLower.includes(sName)));
 
-      if (!matchId && !matchUsername && !matchName) return false;
+      if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
+      // Jika shift statusnya AKTIF dan belum logout, petugas sedang berdinas
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        if (!isNaN(hb)) return now - hb <= 60000;
-      }
-      if (s.loginTime) {
-        const start = parseLocalTimeString(s.loginTime).getTime();
-        if (!isNaN(start) && now - start <= 180000) return true;
+        if (!isNaN(hb) && now - hb <= 120000) return true;
       }
       return true;
     });
@@ -608,10 +615,10 @@ export function FloatingChatPanel() {
                 {onlineColleaguesCount > 0 ? (
                   <span className="text-gold-300 font-bold flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>{onlineColleaguesCount} Rekan Online</span>
+                    <span>{onlineColleaguesCount} Online</span>
                   </span>
                 ) : (
-                  <span>Sesi Anda Aktif</span>
+                  <span>Tim Operasional</span>
                 )}
               </span>
             </div>
@@ -664,7 +671,7 @@ export function FloatingChatPanel() {
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0"></span>
                     <span className="truncate">
                       {currentUser.fullName} ({currentUser.role})
-                      {onlineColleaguesCount > 0 ? ` • ${onlineColleaguesCount} Rekan Online` : ' • Sesi Anda Aktif'}
+                      {onlineColleaguesCount > 0 ? ` • ${onlineColleaguesCount} Online` : ''}
                     </span>
                   </p>
                 </div>
@@ -721,7 +728,7 @@ export function FloatingChatPanel() {
                     <span className="text-slate-500">•</span>
                     <span className="text-gold-300 font-bold flex items-center gap-1 truncate">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>{onlineColleaguesCount} Rekan Online</span>
+                      <span>{onlineColleaguesCount} Online</span>
                     </span>
                   </>
                 )}
@@ -1141,7 +1148,7 @@ export function FloatingChatPanel() {
                         <span className={`w-2 h-2 rounded-full ${onlineColleaguesCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                         <span>
                           Klik Akun untuk Chat Pribadi 2 Arah
-                          {onlineColleaguesCount > 0 && ` (${onlineColleaguesCount} Rekan Online)`}
+                          {onlineColleaguesCount > 0 && ` (${onlineColleaguesCount} Online)`}
                         </span>
                       </span>
                       <button
@@ -1154,7 +1161,7 @@ export function FloatingChatPanel() {
                     </div>
                     <div className="flex items-center space-x-2 overflow-x-auto pb-1 custom-scrollbar">
                       {otherColleagues.map(colleague => {
-                        const online = isUserOnline(colleague.id);
+                        const online = isUserOnline(colleague);
                         const dmChannelId = getDirectChannelId(currentUser.id, colleague.id);
                         const unreadDm = getChannelUnread(dmChannelId);
 
@@ -1284,12 +1291,12 @@ export function FloatingChatPanel() {
                         const unread = getChannelUnread(channel.id);
                         const partner =
                           channel.type === 'DIRECT' ? getDirectChatPartner(channel) : undefined;
-                        const online = partner ? isUserOnline(partner.id) : false;
+                        const online = partner ? isUserOnline(partner) : false;
                         const groupMembers =
                           channel.type === 'GROUP' ? getGroupMembers(channel) : [];
                         const groupOnlineCount =
                           channel.type === 'GROUP'
-                            ? groupMembers.filter(u => isUserOnline(u.id)).length
+                            ? groupMembers.filter(u => isUserOnline(u)).length
                             : 0;
                         const displayName = getChannelDisplayName(channel);
                         const subtitle = getChannelSubtitle(channel);
