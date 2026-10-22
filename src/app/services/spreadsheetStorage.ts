@@ -1528,3 +1528,39 @@ export async function pushWorkSessionToSpreadsheet(
   }
 }
 
+/**
+ * Utilitas Batch Sync ke Google Spreadsheet:
+ * Mengirimkan data dalam bentuk bulk upsert snapshot hanya saat diminta (misal via tombol
+ * 'Sinkronkan ke Spreadsheet' atau interval background terjadwal), alih-alih per-baris terus menerus
+ * guna menghemat egress Supabase dan menghindari rate limit Google Sheets API.
+ */
+let batchSyncTimer: any = null;
+
+export async function batchSyncToSpreadsheet(
+  customDb?: CompleteStorageDatabase,
+  options: { immediate?: boolean; debounceMs?: number } = {}
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  const { immediate = true, debounceMs = 2500 } = options;
+
+  if (!immediate) {
+    if (batchSyncTimer) clearTimeout(batchSyncTimer);
+    return new Promise((resolve) => {
+      batchSyncTimer = setTimeout(async () => {
+        batchSyncTimer = null;
+        const res = await syncFullDatabaseToSpreadsheet(customDb || dataStorage.getDatabase());
+        resolve(res);
+      }, debounceMs);
+    });
+  }
+
+  const res = await syncFullDatabaseToSpreadsheet(customDb || dataStorage.getDatabase());
+  return {
+    success: res.success,
+    error: res.error,
+    message: res.success 
+      ? 'Snapshot basis data berhasil disinkronkan ke Google Spreadsheet (Batch Mirror).' 
+      : (res.error || 'Gagal menyinkronkan ke Google Spreadsheet')
+  };
+}
+
+

@@ -37,11 +37,22 @@ import { OFFICIAL_APP_LOGO } from '../officialLogo';
 import { 
   fetchFullDatabaseFromSpreadsheet, 
   syncFullDatabaseToSpreadsheet, 
+  batchSyncToSpreadsheet,
   updateBuildingInSpreadsheetDirect, 
   deleteBuildingInSpreadsheetDirect, 
   getSpreadsheetConfig,
   type SpreadsheetSyncState
 } from './spreadsheetStorage';
+import { 
+  fetchFullDatabaseFromSupabase, 
+  pushAllToTargetSupabase, 
+  SUPABASE_ANON_KEY 
+} from '../lib/supabase';
+import { 
+  supabase, 
+  isSupabaseConfigured, 
+  getSupabaseConfig 
+} from '../../integrations/supabase/client';
 import { realtimeService } from './realtimeService';
 
 // Alias tipe untuk kompatibilitas ke belakang
@@ -336,9 +347,73 @@ export class DataStorageService {
     }
   }
 
-  // Alias kompatibilitas
+  /**
+   * Hidrasi data terbaru dari Supabase (Primary Database) dengan Selective Columns & Egress-Optimized Queries.
+   * Jika Supabase offline atau belum terkonfigurasi, otomatis fallback ke server backend / Google Spreadsheet.
+   */
   public async hydrateFromSupabase(forceOverwrite: boolean = false): Promise<CompleteStorageDatabase | null> {
-    return this.hydrateFromSpreadsheet(forceOverwrite);
+    try {
+      this.syncStatus = 'syncing';
+      this.notifySyncListeners({ status: 'syncing', db: this.getDatabase() });
+
+      let cloudDb: CompleteStorageDatabase | null = null;
+      if (isSupabaseConfigured()) {
+        try {
+          cloudDb = await fetchFullDatabaseFromSupabase();
+        } catch (supaErr) {
+          console.warn('[dataStorage] Supabase fetch warning, falling back to spreadsheet:', supaErr);
+        }
+      }
+
+      if (!cloudDb) {
+        cloudDb = await fetchFullDatabaseFromSpreadsheet();
+      }
+
+      if (cloudDb) {
+        const base = this.cache || generateInitialDatabase(false);
+        const preferCloud = forceOverwrite || !this.hasHydratedFromCloud;
+        const mergedDb = this.mergeDatabases(base, cloudDb, preferCloud);
+
+        // Pertahankan workSessions aktif
+        if (this.cache) {
+          const wsMap = new Map<string, WorkSession>();
+          for (const s of (mergedDb.workSessions || [])) {
+            if (s && s.id) wsMap.set(s.id, s);
+          }
+          for (const s of (this.cache.workSessions || [])) {
+            if (!s || !s.id) continue;
+            const remoteS = wsMap.get(s.id);
+            if (!remoteS) {
+              if (s.status === 'AKTIF') wsMap.set(s.id, s);
+            } else if (s.status === 'SELESAI' && remoteS.status !== 'SELESAI') {
+              wsMap.set(s.id, s);
+            } else if (remoteS.status === 'SELESAI' && s.status !== 'SELESAI') {
+              wsMap.set(s.id, remoteS);
+            }
+          }
+          mergedDb.workSessions = Array.from(wsMap.values()).sort((a, b) => (b.loginTime || '').localeCompare(a.loginTime || ''));
+        }
+
+        this.cache = mergedDb;
+        this.saveToStorage(mergedDb);
+        this.lastSyncTime = new Date().toISOString();
+        this.syncStatus = 'connected';
+        this.syncError = null;
+        this.hasHydratedFromCloud = true;
+        this.notifySyncListeners({ status: 'connected', db: mergedDb });
+        return mergedDb;
+      }
+
+      this.syncStatus = 'connected';
+      const current = this.getDatabase();
+      this.notifySyncListeners({ status: 'connected', db: current });
+      return current;
+    } catch (err: any) {
+      this.syncStatus = 'error';
+      this.syncError = err?.message || 'Gagal mengambil data dari Supabase/Spreadsheet';
+      this.notifySyncListeners({ status: 'error', db: this.getDatabase(), error: this.syncError });
+      return null;
+    }
   }
 
   /**
@@ -599,9 +674,40 @@ export class DataStorageService {
     }
   }
 
-  // Alias kompatibilitas
+  /**
+   * Mengirim seluruh data ke Supabase (Primary Database) dan menyinkronkan mirror ke Google Spreadsheet
+   */
   public async pushAllToSupabase(customDb?: CompleteStorageDatabase): Promise<{ success: boolean; error?: string }> {
-    return this.pushAllToSpreadsheet(customDb);
+    const db = customDb || this.getDatabase();
+    this.syncStatus = 'syncing';
+    this.notifySyncListeners({ status: 'syncing', db });
+
+    try {
+      let supaSuccess = true;
+      let supaError: string | undefined;
+
+      // 1. Simpan ke Supabase jika terkonfigurasi
+      if (isSupabaseConfigured()) {
+        const cfg = getSupabaseConfig();
+        const res = await pushAllToTargetSupabase(cfg.url, SUPABASE_ANON_KEY, db);
+        supaSuccess = res.success;
+        supaError = res.error;
+      }
+
+      // 2. Simpan cadangan snapshot ke Google Spreadsheet (Batch Mirror) & Server DB
+      await batchSyncToSpreadsheet(db, { immediate: true });
+
+      this.lastSyncTime = new Date().toISOString();
+      this.syncStatus = 'connected';
+      this.syncError = null;
+      this.notifySyncListeners({ status: 'connected', db });
+      return { success: supaSuccess, error: supaError };
+    } catch (err: any) {
+      this.syncStatus = 'error';
+      this.syncError = err?.message || 'Gagal sinkronisasi basis data';
+      this.notifySyncListeners({ status: 'error', db, error: this.syncError });
+      return { success: false, error: this.syncError };
+    }
   }
 
   /**
@@ -736,6 +842,17 @@ export class DataStorageService {
     try {
       realtimeService.broadcastDatabaseSync({ timestamp: Date.now(), db: updated });
     } catch (_) {}
+
+    // Sinkronisasi asinkron ke Supabase (Primary Database) secara low-egress
+    if (isSupabaseConfigured()) {
+      try {
+        supabase.from('app_database_sync').upsert({
+          id: 'main_production_db',
+          database_payload: updated,
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(err => console.warn('[dataStorage] Supabase async sync warning:', err));
+      } catch (_) {}
+    }
 
     // Sinkronisasi langsung ke Google Spreadsheet & Server Database Cache
     const shouldSkipCloud = Boolean(options && typeof options === 'object' && options.skipCloudSync);

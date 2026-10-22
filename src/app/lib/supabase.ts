@@ -1,25 +1,6 @@
 // @ts-nocheck
-// Mock createClient to avoid external @supabase/supabase-js dependency in AI Studio
-const createClient = (_url: string, _key: string, _opts?: any) => {
-  const queryBuilder: any = {
-    select: () => queryBuilder,
-    insert: () => queryBuilder,
-    upsert: () => queryBuilder,
-    update: () => queryBuilder,
-    delete: () => queryBuilder,
-    eq: () => queryBuilder,
-    neq: () => queryBuilder,
-    limit: () => queryBuilder,
-    maybeSingle: async () => ({ data: null, error: null }),
-    single: async () => ({ data: null, error: null }),
-    then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
-  };
-  return {
-    from: () => queryBuilder,
-    channel: () => ({ on: () => ({ subscribe: () => ({}) }) }),
-    removeChannel: () => {},
-  };
-};
+import { createClient } from '@supabase/supabase-js';
+import { supabase as integratedSupabase, isSupabaseConfigured } from '../../integrations/supabase/client';
 import type { CompleteStorageDatabase } from '../services/dataStorage';
 import { initialRoomCapacityRates, initialUsers, initialBreakfastMenuItems } from '../data';
 import { initialChatChannels } from '../chatData';
@@ -919,68 +900,52 @@ export function mapSupabaseRoomCapacityRateToAppRate(r: any): RoomCapacityRate {
  */
 export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDatabase | null> {
   try {
-    // 0. Prioritaskan penarikan data dari endpoint Google Sheets Web App yang telah dideploy
-    try {
-      const sheetDb = await fetchFullDatabaseFromSpreadsheet();
-      if (sheetDb && ((sheetDb.rooms && sheetDb.rooms.length > 0) || (sheetDb.buildings && sheetDb.buildings.length > 0) || (sheetDb.users && sheetDb.users.length > 0))) {
-        return sheetDb;
-      }
-    } catch (sheetErr) {
-      console.warn('Gagal membaca data dari Google Spreadsheet Web App, mencoba fallback Supabase:', sheetErr);
-    }
-
-    // 1. Ambil data users langsung dari tabel Supabase users agar selalu sinkron dengan database
-    let directUsers: User[] | null = null;
-    try {
-      const { data: uData } = await supabase.from('users').select('*');
-      if (uData && uData.length > 0) {
-        directUsers = uData.map(mapSupabaseUserToAppUser);
-      }
-    } catch (uErr) {
-      console.warn('Gagal membaca tabel users Supabase:', uErr);
-    }
-
-    // 2. Ambil dari tabel snapshot terpadu app_database_sync dan tabel-tabel relasional
-    const [syncRes, buildingsRes, roomsRes, meetingRoomsRes, transactionsRes, maintenancesRes, qcRes, sessionsRes, auditRes, breakfastMenuRes, breakfastOrdersRes, ratesRes, pwdRes, settingsRes] = await Promise.all([
+    // 1. Ambil data secara efisien dari Supabase (Primary Database) dengan Selective Columns & Limit
+    const [
+      syncRes,
+      buildingsRes,
+      roomsRes,
+      meetingRoomsRes,
+      transactionsRes,
+      maintenancesRes,
+      qcRes,
+      sessionsRes,
+      auditRes,
+      breakfastMenuRes,
+      breakfastOrdersRes,
+      ratesRes,
+      settingsRes,
+      usersRes
+    ] = await Promise.all([
       supabase.from('app_database_sync').select('database_payload, updated_at').eq('id', 'main_production_db').maybeSingle(),
-      supabase.from('buildings').select('*'),
-      supabase.from('rooms').select('*'),
-      supabase.from('meeting_rooms').select('*'),
-      supabase.from('transactions').select('*'),
-      supabase.from('maintenances').select('*'),
-      supabase.from('qc_inspections').select('*'),
-      supabase.from('work_sessions').select('*'),
-      supabase.from('audit_logs').select('*'),
-      supabase.from('breakfast_menu_items').select('*'),
-      supabase.from('breakfast_orders').select('*'),
-      supabase.from('room_capacity_rates').select('*'),
-      supabase.from('password_reset_requests').select('*'),
-      supabase.from('app_settings').select('*').maybeSingle()
+      supabase.from('buildings').select('id, name, code, floors, total_rooms, capacity_desc, category, description, status, created_at'),
+      supabase.from('rooms').select('id, room_number, building, floor, type, bed_type, capacity, capacity_number, price_per_night, status, active_tx_id, active_maint_id, qc_status, last_qc_date, last_qc_by, last_qc_notes, facilities, created_at'),
+      supabase.from('meeting_rooms').select('id, name, code, category, building, capacity, capacity_number, facilities, daily_rate, session_rate, description, status, qc_status, active_tx_id, active_maint_id, created_at'),
+      supabase.from('transactions').select('id, room_id, room_number, building, category, guest_name, guest_type, nik_ktp, kloter, start_date, duration, phone, notes, status, created_user, is_group, group_type, group_name, group_pic, group_pic_phone, group_id, total_pax, include_aula, rent_aula_id, rent_aula_name, rent_aula_duration, rent_aula_duration_days, rent_aula_session, catering_package, catering_pax_count, agency_or_document, spk_number, allocated_room_numbers, allocated_rooms_count, breakfast, breakfast_menu, breakfast_portions, breakfast_days, breakfast_status, rent_type, duration_unit, price_per_night, extra_bed, extra_bed_count, extra_bed_price, extra_bed_notes, check_in_time, check_out_time, payment_status, paid_amount, dp_amount, dp_date, dp_method, dp_note, remaining_amount, va_number, va_account_name, bank_name, bank_account_number, payment_method, payment_date, payment_note, kwitansi_no, cancelled_at, cancel_reason, cancelled_user, extended_count, extend_history, created_at'),
+      supabase.from('maintenances').select('id, room_id, building, room_number, category, urgency, technician, description, report_time, status, reported_user, assigned_technician_id, assigned_technician_name, assigned_by_manager, assigned_time, manager_notes, work_completed_time, technician_notes, resolved_time, qc_inspection_id, qc_verdict, facility_type, created_at'),
+      supabase.from('qc_inspections').select('id, room_id, building, room_number, inspector_id, inspector_name, inspection_date, cleanliness, linen_bed, ac_electricity, plumbing_water, amenities, result, decision_type, notes, maintenance_id_created, facility_type, created_at'),
+      supabase.from('work_sessions').select('id, user_id, user_name, user_role, login_time, logout_time, duration_seconds, duration_formatted, status, notes').order('login_time', { ascending: false }).limit(100),
+      supabase.from('audit_logs').select('id, timestamp, user_name, role, action, details, duration_minutes, verification_code, document_title, target_id, signatory_name, signatory_role, signatory_nip, qr_code_hash, has_qr_and_signature').order('timestamp', { ascending: false }).limit(200),
+      supabase.from('breakfast_menu_items').select('id, name, category, price, description, is_available, allergens'),
+      supabase.from('breakfast_orders').select('id, room_number, building, guest_name, phone, kloter, transaction_id, menu_id, menu_name, portions, days, start_date, delivery_time, status, notes, dietary_restriction, price_per_portion, total_price, created_at, updated_at').order('created_at', { ascending: false }).limit(200),
+      supabase.from('room_capacity_rates').select('id, room_type, bed_type, capacity_pax, price_per_night, description, facilities, is_active, updated_at'),
+      supabase.from('app_settings').select('id, organization_name, sub_title, ministry_name, address, phone, email, portal_url, app_logo, app_favicon, tag_title, updated_at').maybeSingle(),
+      supabase.from('users').select('id, username, full_name, role, password, department, supervisor_id, assigned_building, phone, status, email, nip, is_owner, signature_url, qr_code_url, signature_history, security_question, security_answer_hash')
     ]);
 
-    const syncPayload = (!syncRes.error && syncRes.data && syncRes.data.database_payload)
-      ? (syncRes.data.database_payload as CompleteStorageDatabase)
-      : null;
-
-    const relBuildings = (buildingsRes.data || []).map(mapSupabaseBuildingToAppBuilding);
-    const relRooms = (roomsRes.data || []).map(mapSupabaseRoomToAppRoom);
-    const relMeetingRooms = (meetingRoomsRes.data || []).map(mapSupabaseMeetingRoomToAppMeetingRoom);
-    const relTransactions = (transactionsRes.data || []).map(mapSupabaseTransactionToAppTransaction);
-    const relMaintenances = (maintenancesRes.data || []).map(mapSupabaseMaintenanceToAppMaintenance);
-    const relQc = (qcRes.data || []).map(mapSupabaseQcToAppQc);
-    const relSessions = (sessionsRes.data || []).map(mapSupabaseWorkSessionToAppWorkSession);
-    const relAudit = (auditRes.data || []).map(mapSupabaseAuditLogToAppAuditLog);
-    const relMenu = (breakfastMenuRes.data || []).map(mapSupabaseBreakfastMenuItemToAppMenuItem);
-    const relOrders = (breakfastOrdersRes.data || []).map(mapSupabaseBreakfastOrderToAppBreakfastOrder);
-    const relRates = ratesRes.data && ratesRes.data.length > 0
-      ? deduplicateRoomCapacityRates(ratesRes.data.map(mapSupabaseRoomCapacityRateToAppRate))
-      : (syncPayload?.roomCapacityRates || initialRoomCapacityRates);
-
-    // Cek apakah server Supabase berhasil dihubungi (bukan kegagalan koneksi total)
     const isSupabaseReachable = !buildingsRes.error || !roomsRes.error || !transactionsRes.error || !syncRes.error;
     if (!isSupabaseReachable) {
+      // Fallback ke Google Spreadsheet / Server DB jika Supabase belum dikonfigurasi atau offline
+      try {
+        const sheetDb = await fetchFullDatabaseFromSpreadsheet();
+        if (sheetDb && ((sheetDb.rooms && sheetDb.rooms.length > 0) || (sheetDb.buildings && sheetDb.buildings.length > 0) || (sheetDb.users && sheetDb.users.length > 0))) {
+          return sheetDb;
+        }
+      } catch (_) {}
       return null;
     }
+
+    const directUsers = usersRes.data && usersRes.data.length > 0 ? usersRes.data.map(mapSupabaseUserToAppUser) : null;
 
     // PRIORITASKAN TABEL RELASIONAL SUPABASE SECARA LANGSUNG SEBAGAI SINGLE SOURCE OF TRUTH:
     // Aksi CRUD (tambah, edit nama gedung, hapus) langsung membaca tabel database Supabase
