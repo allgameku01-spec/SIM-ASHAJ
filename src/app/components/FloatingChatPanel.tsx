@@ -204,7 +204,7 @@ export function FloatingChatPanel() {
 
     const now = Date.now();
 
-    // 1. Cek live real-time presence heartbeats di server & SSE / BroadcastChannel
+    // 1. Cek live real-time presence heartbeats di Supabase Realtime WebSocket Presence & SSE
     const hasLivePresence = onlinePresences.some(p => {
       if (!p) return false;
       const pId = String(p.userId || '').trim().toLowerCase();
@@ -219,12 +219,12 @@ export function FloatingChatPanel() {
       if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
       const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
-      // Toleransi 75 detik untuk sinkronisasi presence
-      return Boolean(lastSeen && (now - lastSeen <= 75000));
+      // Toleransi 120 detik (2 menit) untuk sinkronisasi presence lintas perangkat
+      return Boolean(lastSeen && (now - lastSeen <= 120000));
     });
     if (hasLivePresence) return true;
 
-    // 2. Cek sesi kerja aktif di database & spreadsheet
+    // 2. Cek sesi kerja aktif di database Supabase (workSessions dengan status 'AKTIF' tanpa logoutTime)
     const hasActiveShift = workSessions.some(s => {
       if (!s || s.status !== 'AKTIF' || s.logoutTime) return false;
       const sId = String(s.userId || '').trim().toLowerCase();
@@ -238,16 +238,14 @@ export function FloatingChatPanel() {
 
       if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
-      // Hanya valid jika ada heartbeat aktif dalam 2.5 menit terakhir
+      // Jika ada lastHeartbeat, cek dalam toleransi 5 menit
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        return !isNaN(hb) && (now - hb <= 150000);
+        if (!isNaN(hb) && (now - hb <= 300000)) return true;
       }
-      if (s.loginTime) {
-        const lt = parseLocalTimeString(s.loginTime).getTime();
-        return !isNaN(lt) && (now - lt <= 150000);
-      }
-      return false;
+
+      // Jika statusnya AKTIF dan belum checkout / tanpa logoutTime, pengguna sedang bertugas aktif!
+      return true;
     });
 
     return hasActiveShift;
@@ -411,15 +409,15 @@ export function FloatingChatPanel() {
     return users
       .filter(u => u.id !== currentUser.id && u.status === 'Aktif')
       .sort((a, b) => {
-        const aOnline = isUserOnline(a.id) ? 1 : 0;
-        const bOnline = isUserOnline(b.id) ? 1 : 0;
+        const aOnline = isUserOnline(a) ? 1 : 0;
+        const bOnline = isUserOnline(b) ? 1 : 0;
         if (aOnline !== bOnline) return bOnline - aOnline;
         return a.fullName.localeCompare(b.fullName);
       });
   }, [users, currentUser.id, onlinePresences, workSessions]);
 
   const onlineColleaguesCount = useMemo(() => {
-    return otherColleagues.filter(u => isUserOnline(u.id)).length;
+    return otherColleagues.filter(u => isUserOnline(u)).length;
   }, [otherColleagues, onlinePresences, workSessions]);
 
   const filteredColleagues = useMemo(() => {
@@ -1217,17 +1215,22 @@ export function FloatingChatPanel() {
                               <div
                                 className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs border shadow-2xs transition group-hover:scale-105 ${
                                   online
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-400 ring-2 ring-emerald-300/60 shadow-emerald-500/20'
                                     : 'bg-slate-100 text-slate-600 border-slate-200'
                                 }`}
                               >
                                 {colleague.fullName.substring(0, 2).toUpperCase()}
                               </div>
-                              <span
-                                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                                  online ? 'bg-emerald-500' : 'bg-slate-300'
-                                }`}
-                              />
+                              {online ? (
+                                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white"></span>
+                                </span>
+                              ) : (
+                                <span
+                                  className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white bg-slate-300"
+                                />
+                              )}
                               {unreadDm > 0 && (
                                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 rounded-full ring-1 ring-white">
                                   {unreadDm}
@@ -1375,7 +1378,7 @@ export function FloatingChatPanel() {
                         </div>
                       ) : (
                         filteredColleagues.map(colleague => {
-                          const online = isUserOnline(colleague.id);
+                          const online = isUserOnline(colleague);
                           const activeSess = getUserActiveSession(colleague.id);
 
                           return (
@@ -1390,18 +1393,23 @@ export function FloatingChatPanel() {
                                   <div
                                     className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs border ${
                                       online
-                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-2xs'
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-400 ring-2 ring-emerald-300/50 shadow-2xs'
                                         : 'bg-slate-100 text-slate-600 border-slate-200'
                                     }`}
                                   >
                                     {colleague.fullName.substring(0, 2).toUpperCase()}
                                   </div>
-                                  <span
-                                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                                      online ? 'bg-emerald-500 shadow-2xs' : 'bg-slate-300'
-                                    }`}
-                                    title={online ? 'Online (Aktif)' : 'Offline'}
-                                  />
+                                  {online ? (
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white shadow-2xs"></span>
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white bg-slate-300"
+                                      title="Offline"
+                                    />
+                                  )}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
@@ -1412,11 +1420,16 @@ export function FloatingChatPanel() {
                                     <span
                                       className={`text-[8px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
                                         online
-                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1'
                                           : 'bg-slate-100 text-slate-500 border-slate-200'
                                       }`}
                                     >
-                                      {online ? '● Online' : 'Offline'}
+                                      {online ? (
+                                        <>
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                          <span>Online</span>
+                                        </>
+                                      ) : 'Offline'}
                                     </span>
                                   </div>
 
@@ -1778,7 +1791,7 @@ export function FloatingChatPanel() {
 
             <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-2">
               {activeGroupMembers.map(member => {
-                const online = isUserOnline(member.id);
+                const online = isUserOnline(member);
                 const isSelf = member.id === currentUser.id;
                 const activeSess = getUserActiveSession(member.id);
 
@@ -1926,7 +1939,7 @@ export function FloatingChatPanel() {
 
       {/* ================= MODAL: REKAP SESI & JAM PETUGAS ================= */}
       {showPartnerSessionModal && selectedSessionUser && (() => {
-        const online = isUserOnline(selectedSessionUser.id);
+        const online = isUserOnline(selectedSessionUser);
         const userSess = getUserActiveSession(selectedSessionUser.id);
         const isSelf = selectedSessionUser.id === currentUser.id;
 

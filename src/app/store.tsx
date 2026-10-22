@@ -24,6 +24,7 @@ import { initialUsers, getInitialRooms, initialTransactions, initialMaintenances
 import { initialChatChannels, initialChatMessages, getDirectChannelId, resolveDirectPartner, isUserParticipantInChannel } from './chatData';
 import { persistChatMessage, persistChatChannel, markChatChannelAsRead, fetchChatDatabaseFromServer, mapRecordToChatMessage, clearChatMessagesFromServer } from './services/chatStorage';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
+import { upsertWorkSessionInSupabaseDirect, upsertChatMessageInSupabaseDirect, updateChatMessageInSupabaseDirect } from './lib/supabase';
 
 import { playNotificationSound } from './lib/sound';
 import { getRealTodayDate, formatIndonesianDate, addDaysToDateStr, getTxDays, getRealLocalDateTimeStr, parseLocalTimeString, formatRupiah, deduplicateRoomCapacityRates, normalizeBuildingName } from './lib/utils';
@@ -1039,6 +1040,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const isSyncingLiveRef = useRef<boolean>(false);
   const lastSpreadsheetHbRef = useRef<number>(0);
+  const lastSupabaseHbRef = useRef<number>(0);
 
   // Sinkronisasi live chat & online presence berkala dari Google Spreadsheet dan saat tab kembali aktif
   useEffect(() => {
@@ -1698,6 +1700,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return [createdSession, ...prev];
       });
       dataStorage.saveWorkSession(createdSession);
+      upsertWorkSessionInSupabaseDirect(createdSession).catch(() => {});
       realtimeService.broadcastWorkSession(createdSession, false);
     } else if (activeSessionId !== myActiveSession.id) {
       setActiveSessionId(myActiveSession.id);
@@ -1757,8 +1760,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           });
           realtimeService.broadcastWorkSession(updatedTarget, false);
 
-          // Sinkronkan detak jantung online ke Google Spreadsheet setiap 15 detik
           const nowMs = Date.now();
+          // Sinkronkan detak jantung sesi kerja ke Supabase setiap 10 detik
+          if (nowMs - lastSupabaseHbRef.current >= 10000) {
+            lastSupabaseHbRef.current = nowMs;
+            upsertWorkSessionInSupabaseDirect(updatedTarget).catch(() => {});
+          }
+
+          // Sinkronkan detak jantung online ke Google Spreadsheet setiap 15 detik
           if (nowMs - lastSpreadsheetHbRef.current >= 15000) {
             lastSpreadsheetHbRef.current = nowMs;
             pushWorkSessionToSpreadsheet(updatedTarget).catch(() => {});
@@ -2160,6 +2169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
       setLoginTime(parsedStart);
       dataStorage.saveWorkSession(updatedExisting);
+      upsertWorkSessionInSupabaseDirect(updatedExisting).catch(() => {});
       pushWorkSessionToSpreadsheet(updatedExisting).catch(() => {});
       setWorkSessions(prev => prev.map(s => (s.id === updatedExisting.id ? updatedExisting : s)));
       realtimeService.broadcastWorkSession(updatedExisting, false);
@@ -2204,8 +2214,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notes: `Sesi login petugas (${user.role} - ${user.department || 'Operasional'})`
     };
 
-    // Simpan langsung ke dataStorage & Google Spreadsheet serta broadcast real-time agar seluruh akun lain langsung melihat petugas ini aktif
+    // Simpan langsung ke dataStorage & Supabase & Google Spreadsheet serta broadcast real-time agar seluruh akun lain langsung melihat petugas ini aktif
     dataStorage.saveWorkSession(newSession);
+    upsertWorkSessionInSupabaseDirect(newSession).catch(() => {});
     pushWorkSessionToSpreadsheet(newSession).catch(() => {});
     setWorkSessions(prev => {
       const sanitized = prev.map(s => {
@@ -2270,6 +2281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             status: 'SELESAI' as const
           };
           dataStorage.saveWorkSession(finishedSession);
+          upsertWorkSessionInSupabaseDirect(finishedSession).catch(() => {});
           pushWorkSessionToSpreadsheet(finishedSession).catch(() => {});
           realtimeService.broadcastWorkSession(finishedSession, false);
           return finishedSession;
@@ -2319,6 +2331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     dataStorage.saveWorkSession(endedSession);
+    upsertWorkSessionInSupabaseDirect(endedSession).catch(() => {});
     setWorkSessions(prev => prev.map(s => (s.id === sessionId ? endedSession : s)));
     realtimeService.broadcastWorkSession(endedSession, false);
     realtimeService.sendLeave(target.userId, true);
@@ -2361,6 +2374,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     dataStorage.saveWorkSession(newSession);
+    upsertWorkSessionInSupabaseDirect(newSession).catch(() => {});
     setWorkSessions(prev => [newSession, ...prev]);
     realtimeService.broadcastWorkSession(newSession, true);
     logAudit(

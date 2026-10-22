@@ -3,7 +3,12 @@ import { ChatChannel, ChatMessage, ChatScope } from '../types';
 import { initialChatChannels } from '../chatData';
 import { dataStorage } from './dataStorage';
 import { pushChatMessageToSpreadsheet } from './spreadsheetStorage';
-import { updateChatMessageInSupabaseDirect, updateChatChannelInSupabaseDirect } from '../lib/supabase';
+import { 
+  updateChatMessageInSupabaseDirect, 
+  updateChatChannelInSupabaseDirect, 
+  upsertChatMessageInSupabaseDirect 
+} from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../../integrations/supabase/client';
 
 /**
  * ============================================================================
@@ -223,6 +228,26 @@ export function mapRecordToChatMessage(r: any): ChatMessage {
  * Mengambil database chat lengkap dari backend server
  */
 export async function fetchChatDatabaseFromServer(): Promise<{ channels: ChatChannel[]; messages: ChatMessage[] } | null> {
+  // 1. Query langsung dari Supabase Database (Primary Cloud Database - Vercel & Production)
+  if (isSupabaseConfigured()) {
+    try {
+      const [msgRes, chRes] = await Promise.all([
+        supabase.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(300),
+        supabase.from('chat_channels').select('*')
+      ]);
+      if (!msgRes.error && !chRes.error && (msgRes.data || chRes.data)) {
+        syncOfflineMessageQueue().catch(() => {});
+        return {
+          channels: (chRes.data || []).map(mapRecordToChatChannel),
+          messages: (msgRes.data || []).map(mapRecordToChatMessage)
+        };
+      }
+    } catch (err) {
+      console.warn('[ChatStorage] Supabase direct fetch warning:', err);
+    }
+  }
+
+  // 2. Fallback ke backend server jika tersedia (Local Dev / Express)
   try {
     const res = await fetch('/api/chat/database', {
       headers: { Accept: 'application/json' }
@@ -304,8 +329,9 @@ export async function persistChatMessage(
   // 1. Simpan di dataStorage lokal (IndexedDB / LocalStorage)
   dataStorage.saveChatMessage(message, channel);
 
-  // 2. Kirim langsung ke basis data Supabase (Primary Database)
+  // 2. Kirim langsung ke basis data Supabase (Primary Database: tabel chat_messages & app_database_sync)
   updateChatMessageInSupabaseDirect(message).catch(() => {});
+  upsertChatMessageInSupabaseDirect(message, channel).catch(() => {});
 
   // 3. Kirim ke basis data Google Spreadsheet secara asinkron (Mirror)
   pushChatMessageToSpreadsheet(message, channel).catch(err => {

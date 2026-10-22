@@ -815,12 +815,86 @@ export function mapSupabaseWorkSessionToAppWorkSession(s: any): WorkSession {
     userId: s.user_id || s.userId || '',
     userName: s.user_name || s.userName || '',
     userRole: s.user_role || s.userRole || '',
+    department: s.department || undefined,
+    assignedBuilding: s.assigned_building || s.assignedBuilding || undefined,
+    lastHeartbeat: s.last_heartbeat || s.lastHeartbeat || undefined,
     loginTime: s.login_time || s.loginTime || '',
     logoutTime: s.logout_time || s.logoutTime || null,
     durationSeconds: Number(s.duration_seconds ?? s.durationSeconds ?? 0),
     durationFormatted: s.duration_formatted || s.durationFormatted || '0 Jam 0 Menit 0 Detik',
     status: s.status || 'AKTIF',
     notes: s.notes || undefined
+  };
+}
+
+export function mapRecordToChatChannel(r: any): ChatChannel {
+  let participantIds: string[] = [];
+  if (Array.isArray(r.participantIds || r.participant_ids)) {
+    participantIds = r.participantIds || r.participant_ids;
+  } else if (typeof (r.participant_ids || r.participantIds) === 'string') {
+    try {
+      const parsed = JSON.parse(r.participant_ids || r.participantIds);
+      if (Array.isArray(parsed)) participantIds = parsed;
+    } catch (_) {
+      participantIds = (r.participant_ids || r.participantIds).split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+
+  return {
+    id: String(r.id || ''),
+    name: String(r.name || 'Ruang Obrolan'),
+    type: r.type === 'DIRECT' ? 'DIRECT' : 'GROUP',
+    scope: (r.scope || 'ALL_MANAGERS_GROUP') as any,
+    department: r.department || undefined,
+    participantIds,
+    description: r.description || undefined,
+    icon: r.icon || (r.type === 'DIRECT' ? 'fa-user' : 'fa-comments'),
+    lastMessage: r.lastMessage || r.last_message || undefined,
+    lastMessageTime: r.lastMessageTime || r.last_message_time || undefined,
+    lastSenderName: r.lastSenderName || r.last_sender_name || undefined
+  };
+}
+
+export function mapRecordToChatMessage(r: any): ChatMessage {
+  let readBy: string[] = [];
+  if (Array.isArray(r.readBy || r.read_by)) {
+    readBy = r.readBy || r.read_by;
+  } else if (typeof (r.read_by || r.readBy) === 'string') {
+    try {
+      const parsed = JSON.parse(r.read_by || r.readBy);
+      if (Array.isArray(parsed)) readBy = parsed;
+    } catch (_) {
+      readBy = (r.read_by || r.readBy).split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+
+  const rawTimestamp = r.timestamp || r.created_at || new Date().toISOString();
+  let timeFormatted = r.timeFormatted || r.time_formatted;
+  if (!timeFormatted) {
+    try {
+      const d = new Date(rawTimestamp);
+      timeFormatted = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+    } catch (_) {
+      timeFormatted = '00:00 WIB';
+    }
+  }
+
+  return {
+    id: String(r.id || `msg-${Date.now()}`),
+    channelId: String(r.channelId || r.channel_id || ''),
+    senderId: String(r.senderId || r.sender_id || ''),
+    senderName: String(r.senderName || r.sender_name || 'Petugas'),
+    senderRole: String(r.senderRole || r.sender_role || 'Staf'),
+    senderDepartment: r.senderDepartment || r.sender_department || undefined,
+    message: String(r.message || ''),
+    timestamp: rawTimestamp,
+    timeFormatted,
+    priority: (r.priority || 'NORMAL') as 'NORMAL' | 'PENTING' | 'URGENT',
+    isInstruction: Boolean(r.isInstruction ?? r.is_instruction ?? false),
+    readBy,
+    replyToId: r.replyToId || r.reply_to_id || undefined,
+    replyToSender: r.replyToSender || r.reply_to_sender || undefined,
+    replyToText: r.replyToText || r.reply_to_text || undefined
   };
 }
 
@@ -915,7 +989,9 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       breakfastOrdersRes,
       ratesRes,
       settingsRes,
-      usersRes
+      usersRes,
+      chatMessagesRes,
+      chatChannelsRes
     ] = await Promise.all([
       supabase.from('app_database_sync').select('database_payload, updated_at').eq('id', 'main_production_db').maybeSingle(),
       supabase.from('buildings').select('id, name, code, floors, total_rooms, capacity_desc, category, description, status, created_at'),
@@ -930,7 +1006,9 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       supabase.from('breakfast_orders').select('id, room_number, building, guest_name, phone, kloter, transaction_id, menu_id, menu_name, portions, days, start_date, delivery_time, status, notes, dietary_restriction, price_per_portion, total_price, created_at, updated_at').order('created_at', { ascending: false }).limit(200),
       supabase.from('room_capacity_rates').select('id, room_type, bed_type, capacity_pax, price_per_night, description, facilities, is_active, updated_at'),
       supabase.from('app_settings').select('id, organization_name, sub_title, ministry_name, address, phone, email, portal_url, app_logo, app_favicon, tag_title, updated_at').maybeSingle(),
-      supabase.from('users').select('id, username, full_name, role, password, department, supervisor_id, assigned_building, phone, status, email, nip, is_owner, signature_url, qr_code_url, signature_history, security_question, security_answer_hash')
+      supabase.from('users').select('id, username, full_name, role, password, department, supervisor_id, assigned_building, phone, status, email, nip, is_owner, signature_url, qr_code_url, signature_history, security_question, security_answer_hash'),
+      supabase.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(300),
+      supabase.from('chat_channels').select('*')
     ]);
 
     const isSupabaseReachable = !buildingsRes.error || !roomsRes.error || !transactionsRes.error || !syncRes.error;
@@ -1088,7 +1166,11 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
     }
     const mergedWorkSessions = Array.from(sessionMap.values()).sort((a, b) => (b.loginTime || '').localeCompare(a.loginTime || ''));
 
-    // Gabungkan chatChannels agar grup divisi default selalu tersedia bersama grup kustom & chat pribadi (DIRECT)
+    // Gabungkan chatChannels dari tabel Supabase chat_channels, syncPayload, dan default
+    const relChatChannels = chatChannelsRes?.data && Array.isArray(chatChannelsRes.data)
+      ? chatChannelsRes.data.map(mapRecordToChatChannel)
+      : [];
+
     const channelMap = new Map<string, ChatChannel>();
     for (const ch of initialChatChannels) {
       channelMap.set(ch.id, { ...ch });
@@ -1098,9 +1180,18 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       const existing = channelMap.get(ch.id);
       channelMap.set(ch.id, existing ? { ...existing, ...ch } : ch);
     }
+    for (const ch of relChatChannels) {
+      if (!ch || !ch.id) continue;
+      const existing = channelMap.get(ch.id);
+      channelMap.set(ch.id, existing ? { ...existing, ...ch } : ch);
+    }
     const mergedChatChannels = Array.from(channelMap.values());
 
-    // Deduplikasi pesan chat berdasarkan id dan urutkan secara kronologis
+    // Deduplikasi pesan chat dari tabel Supabase chat_messages dan snapshot
+    const relChatMessages = chatMessagesRes?.data && Array.isArray(chatMessagesRes.data)
+      ? chatMessagesRes.data.map(mapRecordToChatMessage)
+      : [];
+
     const msgMap = new Map<string, ChatMessage>();
     for (const m of (syncPayload?.chatMessages || [])) {
       if (!m || !m.id) continue;
@@ -1112,7 +1203,17 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
         msgMap.set(m.id, { ...existing, ...m, readBy: Array.from(readSet) });
       }
     }
-    const mergedChatMessages = Array.from(msgMap.values());
+    for (const m of relChatMessages) {
+      if (!m || !m.id) continue;
+      const existing = msgMap.get(m.id);
+      if (!existing) {
+        msgMap.set(m.id, m);
+      } else {
+        const readSet = new Set([...(existing.readBy || []), ...(m.readBy || [])]);
+        msgMap.set(m.id, { ...existing, ...m, readBy: Array.from(readSet) });
+      }
+    }
+    const mergedChatMessages = Array.from(msgMap.values()).sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 
     // Pemetaan akurat pengaturan aplikasi (snake_case dari Supabase ke camelCase aplikasi)
     let finalAppSettings = syncPayload?.appSettings;
@@ -3149,6 +3250,9 @@ export async function upsertWorkSessionInSupabaseDirect(session: WorkSession): P
       user_id: session.userId,
       user_name: session.userName,
       user_role: session.userRole,
+      department: session.department || null,
+      assigned_building: session.assignedBuilding || null,
+      last_heartbeat: session.lastHeartbeat || new Date().toISOString(),
       login_time: session.loginTime,
       logout_time: session.logoutTime || null,
       duration_seconds: session.durationSeconds || 0,

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { ChatChannel, ChatMessage, WorkSession } from '../types';
+import { supabase, isSupabaseConfigured } from '../../integrations/supabase/client';
 
 export interface OnlinePresenceInfo {
   clientId: string;
@@ -47,11 +48,13 @@ class RealtimeService {
   private listeners: Set<RealtimeEventListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
   private eventSource: EventSource | null = null;
+  private supabaseChannel: any = null;
   private reconnectTimer: any = null;
   private pollingTimer: any = null;
   private isPolling = false;
   private isInitialized = false;
   private presencesMap: Map<string, OnlinePresenceInfo> = new Map();
+  private lastKnownTrackInfo: any = null;
 
   constructor() {
     this.clientId = `client-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
@@ -79,25 +82,37 @@ class RealtimeService {
       console.warn('BroadcastChannel warning:', e);
     }
 
-    // 2. Server-Sent Events (SSE) Stream to Express Server (/api/realtime/stream)
+    // 2. Supabase Realtime WebSocket Connection (Cross-browser, cross-device, global)
+    try {
+      this.connectSupabaseRealtime();
+    } catch (err) {
+      console.warn('Supabase Realtime setup exception:', err);
+    }
+
+    // 3. Server-Sent Events (SSE) Stream to Express Server (/api/realtime/stream) if available
     this.connectSSE();
 
-    // 3. Bulletproof Automatic HTTP Polling Fallback (setiap 2.5 detik)
-    // Memastikan koneksi multi-perangkat / beda laptop selalu sinkron 100% meskipun SSE terhalang proxy
+    // 4. HTTP Polling Loop (fallback for environments where SSE or sockets might encounter proxies)
     this.startPollingLoop();
 
-    // 4. Polling seketika saat window kembali fokus / tab aktif
+    // 5. Polling seketika saat window kembali fokus / tab aktif
     try {
       window.addEventListener('focus', () => this.pollNow());
-      window.addEventListener('online', () => this.pollNow());
+      window.addEventListener('online', () => {
+        this.connectSupabaseRealtime();
+        this.pollNow();
+      });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           this.pollNow();
         }
       });
-      // 5. Instantly inform server on tab close or navigation
+      // 6. Instantly inform server on tab close or navigation
       window.addEventListener('beforeunload', () => {
         try {
+          if (this.supabaseChannel) {
+            this.supabaseChannel.untrack().catch(() => {});
+          }
           const userStr = sessionStorage.getItem('sim_haji_current_user') || localStorage.getItem('sim_haji_current_user');
           if (userStr) {
             const u = JSON.parse(userStr);
@@ -115,6 +130,132 @@ class RealtimeService {
         } catch (_) {}
       });
     } catch (_) {}
+  }
+
+  private connectSupabaseRealtime() {
+    if (typeof window === 'undefined' || !isSupabaseConfigured()) return;
+    try {
+      if (this.supabaseChannel) {
+        try {
+          supabase.removeChannel(this.supabaseChannel);
+        } catch (_) {}
+        this.supabaseChannel = null;
+      }
+
+      const ch = supabase.channel('sim_haji_global_realtime', {
+        config: {
+          presence: { key: this.clientId },
+          broadcast: { ack: false, self: false }
+        }
+      });
+
+      // Presence state sync handler
+      ch.on('presence', { event: 'sync' }, () => {
+        try {
+          const state = ch.presenceState();
+          const now = Date.now();
+          const newMap = new Map<string, OnlinePresenceInfo>();
+
+          Object.keys(state).forEach((key) => {
+            const presences = state[key] as any[];
+            if (Array.isArray(presences)) {
+              presences.forEach((p) => {
+                if (p && p.userId) {
+                  newMap.set(p.userId, {
+                    ...p,
+                    lastSeenMs: p.lastSeenMs || now,
+                  });
+                }
+              });
+            }
+          });
+
+          // Pertahankan keberadaan lokal diri sendiri jika valid
+          if (this.lastKnownTrackInfo?.userId) {
+            newMap.set(this.lastKnownTrackInfo.userId, {
+              ...this.lastKnownTrackInfo,
+              clientId: this.clientId,
+              lastSeenMs: now,
+            });
+          }
+
+          this.presencesMap = newMap;
+          this.notifyListeners({
+            type: 'presence:sync',
+            payload: this.getActivePresences(),
+            senderClientId: 'supabase_presence',
+            timestamp: now,
+          });
+        } catch (e) {
+          console.warn('[Realtime] presence:sync handler error:', e);
+        }
+      });
+
+      ch.on('presence', { event: 'join' }, ({ newPresences }: any) => {
+        try {
+          const now = Date.now();
+          if (Array.isArray(newPresences)) {
+            newPresences.forEach((p: any) => {
+              if (p && p.userId) {
+                this.presencesMap.set(p.userId, {
+                  ...p,
+                  lastSeenMs: now,
+                });
+              }
+            });
+            this.notifyListeners({
+              type: 'presence:update',
+              payload: this.getActivePresences(),
+              senderClientId: 'supabase_presence',
+              timestamp: now,
+            });
+          }
+        } catch (_) {}
+      });
+
+      ch.on('presence', { event: 'leave' }, ({ leftPresences }: any) => {
+        try {
+          if (Array.isArray(leftPresences)) {
+            leftPresences.forEach((p: any) => {
+              if (p && p.userId && p.clientId !== this.clientId) {
+                this.presencesMap.delete(p.userId);
+              }
+            });
+            this.notifyListeners({
+              type: 'presence:update',
+              payload: this.getActivePresences(),
+              senderClientId: 'supabase_presence',
+              timestamp: Date.now(),
+            });
+          }
+        } catch (_) {}
+      });
+
+      // Global broadcast event listener for instant chat & session updates
+      ch.on('broadcast', { event: 'realtime_event' }, (payloadObj: any) => {
+        try {
+          const eventData = payloadObj?.payload as RealtimeEventPayload;
+          if (!eventData || eventData.senderClientId === this.clientId) return;
+          this.handleIncomingEvent(eventData);
+        } catch (_) {}
+      });
+
+      ch.subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          this.supabaseChannel = ch;
+          // Re-track local presence if info was recorded
+          if (this.lastKnownTrackInfo) {
+            ch.track({
+              ...this.lastKnownTrackInfo,
+              clientId: this.clientId,
+              lastSeenMs: Date.now(),
+            }).catch(() => {});
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[Realtime] Failed to connect Supabase realtime channel:', e);
+    }
   }
 
   private connectSSE() {
@@ -298,8 +439,8 @@ class RealtimeService {
     const byUser = new Map<string, OnlinePresenceInfo>();
     for (const [key, p] of this.presencesMap.entries()) {
       const lastSeen = p.lastSeenMs || 0;
-      // Toleransi 90 detik untuk menjamin sinkronisasi lintas browser & tab background
-      if (now - lastSeen > 90000) {
+      // Toleransi 120 detik untuk menjamin sinkronisasi lintas browser, tab background & device
+      if (now - lastSeen > 120000) {
         this.presencesMap.delete(key);
         continue;
       }
@@ -349,12 +490,23 @@ class RealtimeService {
       this.presencesMap.delete(payload.userId);
     }
 
-    // 2. Broadcast to same-browser tabs immediately
+    // 2. Broadcast to same-browser tabs immediately via BroadcastChannel
     try {
       this.broadcastChannel?.postMessage(eventObj);
     } catch (_) {}
 
-    // 3. Send to Express Server SSE & Realtime Hub
+    // 3. Broadcast to all other devices & browsers via Supabase Realtime WebSocket
+    try {
+      if (this.supabaseChannel) {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'realtime_event',
+          payload: eventObj,
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
+    // 4. Send to Express Server SSE & Realtime Hub if running (safe for Vercel)
     try {
       fetch('/api/realtime/event', {
         method: 'POST',
@@ -365,21 +517,35 @@ class RealtimeService {
           clientId: this.clientId,
         }),
       }).then(() => {
-        // Trigger quick poll to get authoritative sync
         setTimeout(() => this.pollNow(), 300);
       }).catch(() => {});
     } catch (_) {}
   }
 
   public sendHeartbeat(info: Omit<OnlinePresenceInfo, 'clientId' | 'lastSeenMs'>) {
-    this.emit('presence:heartbeat', {
+    this.lastKnownTrackInfo = info;
+    const fullInfo = {
       ...info,
       clientId: this.clientId,
       lastSeenMs: Date.now(),
-    });
+    };
+
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.track(fullInfo).catch(() => {});
+      } catch (_) {}
+    }
+
+    this.emit('presence:heartbeat', fullInfo);
   }
 
   public sendLeave(userId: string, allDevices: boolean = false) {
+    this.lastKnownTrackInfo = null;
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.untrack().catch(() => {});
+      } catch (_) {}
+    }
     this.emit('presence:leave', { userId, allDevices });
   }
 
