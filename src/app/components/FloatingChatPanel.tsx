@@ -42,7 +42,7 @@ export function FloatingChatPanel() {
     setActiveTab
   } = useAppContext();
 
-  const [chatSubFilter, setChatSubFilter] = useState<'ALL' | 'GROUP' | 'DIRECT'>('ALL');
+  const [chatSubFilter, setChatSubFilter] = useState<'ALL' | 'ONLINE' | 'GROUP' | 'DIRECT'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [newChatSearch, setNewChatSearch] = useState('');
   const [messageInput, setMessageInput] = useState('');
@@ -422,6 +422,19 @@ export function FloatingChatPanel() {
     return otherColleagues.filter(u => isUserOnline(u.id)).length;
   }, [otherColleagues, onlinePresences, workSessions]);
 
+  const filteredColleagues = useMemo(() => {
+    const list = [...otherColleagues];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(u =>
+      String(u.fullName || '').toLowerCase().includes(q) ||
+      String(u.role || '').toLowerCase().includes(q) ||
+      String(u.department || '').toLowerCase().includes(q) ||
+      String(u.username || '').toLowerCase().includes(q) ||
+      String(u.assignedBuilding || '').toLowerCase().includes(q)
+    );
+  }, [otherColleagues, searchQuery]);
+
   const activeChannel = chatChannels.find(c => c.id === activeChatChannelId);
   const channelMessages = useMemo(() => {
     if (!activeChatChannelId) return [];
@@ -727,13 +740,36 @@ export function FloatingChatPanel() {
                   <i className="fa-solid fa-file-excel text-[10px] text-emerald-400"></i>
                   <span>Spreadsheet: Tersinkron</span>
                 </span>
-                {onlineColleaguesCount > 0 && (
+                {onlineColleaguesCount > 0 ? (
                   <>
                     <span className="text-slate-500">•</span>
-                    <span className="text-gold-300 font-bold flex items-center gap-1 truncate">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveChatChannelId(null);
+                        setChatSubFilter('ONLINE');
+                      }}
+                      className="text-gold-300 hover:text-white font-bold flex items-center gap-1 truncate cursor-pointer hover:underline transition"
+                      title="Klik untuk melihat seluruh petugas yang sedang online"
+                    >
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                       <span>{onlineColleaguesCount} Online</span>
-                    </span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-500">•</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveChatChannelId(null);
+                        setChatSubFilter('ONLINE');
+                      }}
+                      className="text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1 truncate cursor-pointer hover:underline text-[9.5px]"
+                      title="Lihat seluruh direktori petugas"
+                    >
+                      <span>Lihat Petugas</span>
+                    </button>
                   </>
                 )}
               </div>
@@ -1231,6 +1267,18 @@ export function FloatingChatPanel() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setChatSubFilter('ONLINE')}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center space-x-1 ${
+                          chatSubFilter === 'ONLINE'
+                            ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${chatSubFilter === 'ONLINE' ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
+                        <span>Online ({onlineColleaguesCount})</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setChatSubFilter('GROUP')}
                         className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center space-x-1 ${
                           chatSubFilter === 'GROUP'
@@ -1268,126 +1316,279 @@ export function FloatingChatPanel() {
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Cari saluran atau rekan..."
+                        placeholder={
+                          chatSubFilter === 'ONLINE'
+                            ? 'Cari nama rekan, divisi, atau peran...'
+                            : 'Cari saluran atau rekan...'
+                        }
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-7 pr-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-hajj-600 focus:bg-white focus:outline-none text-slate-800 placeholder:text-slate-400"
+                        className="w-full pl-7 pr-7 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-hajj-600 focus:bg-white focus:outline-none text-slate-800 placeholder:text-slate-400"
                       />
                       <i className="fa-solid fa-magnifying-glass absolute left-2 top-2 text-slate-400 text-[10px]"></i>
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-2 top-1 text-slate-400 hover:text-slate-600 text-xs p-0.5 cursor-pointer"
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Channels List */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 min-w-0">
-                    {filteredChannels.length === 0 ? (
-                      <div className="text-center py-6 px-3 text-slate-400 space-y-1.5">
-                        <p className="text-xs">Belum ada percakapan pada kategori ini.</p>
-                        <button
-                          type="button"
-                          onClick={() => setIsNewChatModalOpen(true)}
-                          className="px-2.5 py-1 bg-hajj-700 text-white rounded-lg text-xs font-bold shadow-2xs cursor-pointer"
-                        >
-                          + Mulai Chat Pribadi Baru
-                        </button>
+                  {/* List Content: Online Directory OR Channels */}
+                  {chatSubFilter === 'ONLINE' ? (
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 min-w-0">
+                      {/* Summary Header */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 text-xs">
+                        <div className="flex items-center space-x-2">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+                          </span>
+                          <span className="font-bold text-emerald-950 text-[11px]">
+                            {onlineColleaguesCount} Petugas Sedang Aktif
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-emerald-700 font-medium">
+                          Total {otherColleagues.length} Rekan Tim
+                        </span>
                       </div>
-                    ) : (
-                      filteredChannels.map(channel => {
-                        const unread = getChannelUnread(channel.id);
-                        const partner =
-                          channel.type === 'DIRECT' ? getDirectChatPartner(channel) : undefined;
-                        const online = partner ? isUserOnline(partner) : false;
-                        const groupMembers =
-                          channel.type === 'GROUP' ? getGroupMembers(channel) : [];
-                        const groupOnlineCount =
-                          channel.type === 'GROUP'
-                            ? groupMembers.filter(u => isUserOnline(u)).length
-                            : 0;
-                        const displayName = getChannelDisplayName(channel);
-                        const subtitle = getChannelSubtitle(channel);
 
-                        return (
-                          <button
-                            key={channel.id}
-                            type="button"
-                            onClick={() => openChat(channel.id)}
-                            className={`w-full text-left p-2 sm:p-2.5 bg-white hover:bg-hajj-50/60 border rounded-xl transition flex items-center justify-between group cursor-pointer shadow-2xs min-w-0 ${
-                              unread > 0
-                                ? 'border-hajj-400 bg-hajj-50/30'
-                                : 'border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                              <div className="relative shrink-0">
-                                <div
-                                  className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs border ${
-                                    channel.type === 'DIRECT'
-                                      ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                      : 'bg-hajj-100 text-hajj-800 border-hajj-200'
-                                  }`}
-                                >
-                                  {channel.type === 'DIRECT' ? (
-                                    partner ? (
-                                      partner.fullName.substring(0, 2).toUpperCase()
-                                    ) : (
-                                      'DM'
-                                    )
-                                  ) : (
-                                    <i className={`fa-solid ${channel.icon || 'fa-users'} text-[11px]`}></i>
-                                  )}
-                                </div>
-                                {channel.type === 'DIRECT' && (
-                                  <span
-                                    className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1.5 ring-white ${
-                                      online ? 'bg-emerald-500' : 'bg-slate-300'
+                      {filteredColleagues.length === 0 ? (
+                        <div className="text-center py-8 px-3 text-slate-400 space-y-2">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-base">
+                            <i className="fa-solid fa-user-slash"></i>
+                          </div>
+                          <p className="text-xs">Tidak ada rekan kerja yang cocok dengan pencarian.</p>
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setSearchQuery('')}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                            >
+                              Hapus Filter Pencarian
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        filteredColleagues.map(colleague => {
+                          const online = isUserOnline(colleague.id);
+                          const activeSess = getUserActiveSession(colleague.id);
+
+                          return (
+                            <div
+                              key={colleague.id}
+                              className={`p-2.5 bg-white border rounded-xl transition flex items-center justify-between group shadow-2xs hover:border-hajj-400 ${
+                                online ? 'border-emerald-200 bg-emerald-50/15' : 'border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                                <div className="relative shrink-0">
+                                  <div
+                                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs border ${
+                                      online
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-2xs'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200'
                                     }`}
+                                  >
+                                    {colleague.fullName.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <span
+                                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                                      online ? 'bg-emerald-500 shadow-2xs' : 'bg-slate-300'
+                                    }`}
+                                    title={online ? 'Online (Aktif)' : 'Offline'}
                                   />
-                                )}
-                              </div>
+                                </div>
 
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-1">
-                                  <div className="flex items-center space-x-1.5 min-w-0">
-                                    <span className="font-bold text-slate-900 text-xs group-hover:text-hajj-700 truncate">
-                                      {displayName}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className="font-bold text-slate-900 text-xs truncate group-hover:text-hajj-700">
+                                      {colleague.fullName}
                                     </span>
                                     <span
-                                      className={`text-[8px] font-bold px-1.5 py-0.1 rounded shrink-0 ${
-                                        channel.type === 'DIRECT'
-                                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      className={`text-[8px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                                        online
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          : 'bg-slate-100 text-slate-500 border-slate-200'
                                       }`}
                                     >
-                                      {channel.type === 'DIRECT' ? 'Pribadi' : `${groupOnlineCount} Aktif`}
+                                      {online ? '● Online' : 'Offline'}
                                     </span>
                                   </div>
-                                  {channel.lastMessageTime && (
-                                    <span className="text-[9px] text-slate-400 font-mono shrink-0">
-                                      {channel.lastMessageTime}
-                                    </span>
+
+                                  <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                    <span className="font-semibold text-slate-700">{colleague.role}</span>
+                                    {colleague.department ? ` • ${colleague.department}` : ''}
+                                    {colleague.assignedBuilding ? ` (${colleague.assignedBuilding})` : ''}
+                                  </p>
+
+                                  {activeSess ? (
+                                    <div className="flex items-center space-x-1.5 mt-1">
+                                      <span className="text-[9px] text-emerald-800 bg-emerald-50 border border-emerald-200 font-semibold px-1.5 py-0.2 rounded font-mono">
+                                        Shift: {activeSess.loginTime.split(' ')[1] || activeSess.loginTime} WIB
+                                      </span>
+                                      <span className="text-[9px] text-emerald-900 font-bold bg-emerald-100/80 px-1.5 py-0.2 rounded border border-emerald-300 font-mono">
+                                        {formatSessionLiveDuration(activeSess.loginTime)}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[9px] text-slate-400 mt-0.5">
+                                      {online ? 'Aktif dalam sistem' : 'Tidak sedang bertugas'}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSessionUser(colleague);
+                                    setShowPartnerSessionModal(true);
+                                  }}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                                  title="Lihat riwayat sesi shift petugas"
+                                >
+                                  <i className="fa-solid fa-clock-rotate-left text-[9px] text-blue-600 mr-1"></i>
+                                  <span className="hidden sm:inline">Sesi</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartDirectChat(colleague)}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center space-x-1 shadow-2xs ${
+                                    online
+                                      ? 'bg-hajj-700 hover:bg-hajj-800 text-white border border-gold-500/30'
+                                      : 'bg-slate-700 hover:bg-slate-800 text-white'
+                                  }`}
+                                  title={`Kirim pesan 2 arah ke ${colleague.fullName}`}
+                                >
+                                  <i className="fa-solid fa-comment-dots text-[9px]"></i>
+                                  <span>{online ? 'Chat' : 'Pesan'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    /* Channels List */
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 min-w-0">
+                      {filteredChannels.length === 0 ? (
+                        <div className="text-center py-6 px-3 text-slate-400 space-y-1.5">
+                          <p className="text-xs">Belum ada percakapan pada kategori ini.</p>
+                          <button
+                            type="button"
+                            onClick={() => setIsNewChatModalOpen(true)}
+                            className="px-2.5 py-1 bg-hajj-700 text-white rounded-lg text-xs font-bold shadow-2xs cursor-pointer"
+                          >
+                            + Mulai Chat Pribadi Baru
+                          </button>
+                        </div>
+                      ) : (
+                        filteredChannels.map(channel => {
+                          const unread = getChannelUnread(channel.id);
+                          const partner =
+                            channel.type === 'DIRECT' ? getDirectChatPartner(channel) : undefined;
+                          const online = partner ? isUserOnline(partner) : false;
+                          const groupMembers =
+                            channel.type === 'GROUP' ? getGroupMembers(channel) : [];
+                          const groupOnlineCount =
+                            channel.type === 'GROUP'
+                              ? groupMembers.filter(u => isUserOnline(u)).length
+                              : 0;
+                          const displayName = getChannelDisplayName(channel);
+                          const subtitle = getChannelSubtitle(channel);
+
+                          return (
+                            <button
+                              key={channel.id}
+                              type="button"
+                              onClick={() => openChat(channel.id)}
+                              className={`w-full text-left p-2 sm:p-2.5 bg-white hover:bg-hajj-50/60 border rounded-xl transition flex items-center justify-between group cursor-pointer shadow-2xs min-w-0 ${
+                                unread > 0
+                                  ? 'border-hajj-400 bg-hajj-50/30'
+                                  : 'border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                                <div className="relative shrink-0">
+                                  <div
+                                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs border ${
+                                      channel.type === 'DIRECT'
+                                        ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                        : 'bg-hajj-100 text-hajj-800 border-hajj-200'
+                                    }`}
+                                  >
+                                    {channel.type === 'DIRECT' ? (
+                                      partner ? (
+                                        partner.fullName.substring(0, 2).toUpperCase()
+                                      ) : (
+                                        'DM'
+                                      )
+                                    ) : (
+                                      <i className={`fa-solid ${channel.icon || 'fa-users'} text-[11px]`}></i>
+                                    )}
+                                  </div>
+                                  {channel.type === 'DIRECT' && (
+                                    <span
+                                      className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1.5 ring-white ${
+                                        online ? 'bg-emerald-500' : 'bg-slate-300'
+                                      }`}
+                                    />
                                   )}
                                 </div>
 
-                                <p className="text-[9px] text-slate-400 truncate">{subtitle}</p>
-                                <p
-                                  className={`text-[10px] truncate mt-0.5 ${
-                                    unread > 0 ? 'font-bold text-slate-900' : 'text-slate-500'
-                                  }`}
-                                >
-                                  {channel.lastMessage || 'Belum ada pesan — klik untuk mulai obrolan'}
-                                </p>
-                              </div>
-                            </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center space-x-1.5 min-w-0">
+                                      <span className="font-bold text-slate-900 text-xs group-hover:text-hajj-700 truncate">
+                                        {displayName}
+                                      </span>
+                                      <span
+                                        className={`text-[8px] font-bold px-1.5 py-0.1 rounded shrink-0 ${
+                                          channel.type === 'DIRECT'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        }`}
+                                      >
+                                        {channel.type === 'DIRECT' ? 'Pribadi' : `${groupOnlineCount} Aktif`}
+                                      </span>
+                                    </div>
+                                    {channel.lastMessageTime && (
+                                      <span className="text-[9px] text-slate-400 font-mono shrink-0">
+                                        {channel.lastMessageTime}
+                                      </span>
+                                    )}
+                                  </div>
 
-                            {unread > 0 && (
-                              <span className="ml-1.5 bg-red-500 text-white font-black px-1.5 py-0.2 rounded-full text-[9px] shrink-0 shadow-2xs">
-                                {unread}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
+                                  <p className="text-[9px] text-slate-400 truncate">{subtitle}</p>
+                                  <p
+                                    className={`text-[10px] truncate mt-0.5 ${
+                                      unread > 0 ? 'font-bold text-slate-900' : 'text-slate-500'
+                                    }`}
+                                  >
+                                    {channel.lastMessage || 'Belum ada pesan — klik untuk mulai obrolan'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {unread > 0 && (
+                                <span className="ml-1.5 bg-red-500 text-white font-black px-1.5 py-0.2 rounded-full text-[9px] shrink-0 shadow-2xs">
+                                  {unread}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
 
                   {/* Mobile Bottom Close Action Bar */}
                   <div className="sm:hidden p-1.5 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0">
