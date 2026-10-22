@@ -359,10 +359,24 @@ export async function persistChatChannel(channel: ChatChannel): Promise<ChatChan
  */
 export async function markChatChannelAsRead(channelId: string, userId: string): Promise<void> {
   try {
-    fetch('/api/chat/mark-read', {
+    fetch('/api/chat/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelId, userId })
     }).catch(() => {});
   } catch (_) {}
 }
+
+/**
+ * Menghapus riwayat pesan chat di server
+ */
+export async function clearChatMessagesFromServer(channelId?: string): Promise<void> {
+  try {
+    fetch('/api/chat/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelId })
+    }).catch(() => {});
+  } catch (_) {}
+}
+

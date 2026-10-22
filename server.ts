@@ -1,4 +1,6 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
+
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -76,8 +78,43 @@ const realtimeState: RealtimeState = {
   chatMessages: [],
 };
 
+// Seed initial realtime state from database.json
+try {
+  if (fs.existsSync(DB_FILE)) {
+    const raw = fs.readFileSync(DB_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.chatChannels) && parsed.chatChannels.length > 0) {
+      realtimeState.chatChannels = parsed.chatChannels;
+    }
+    if (Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0) {
+      realtimeState.chatMessages = parsed.chatMessages;
+    }
+    if (Array.isArray(parsed.workSessions) && parsed.workSessions.length > 0) {
+      realtimeState.workSessions = parsed.workSessions;
+    }
+  }
+} catch (e) {
+  console.warn('Gagal memuat cache realtime awal dari DB_FILE:', e);
+}
+
+// Helper untuk menyimpan pembaruan chat ke database.json
+function persistChatToDbFile() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      const db = JSON.parse(raw);
+      db.chatMessages = realtimeState.chatMessages;
+      db.chatChannels = realtimeState.chatChannels;
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    }
+  } catch (e) {
+    console.warn('Gagal menyimpan pembaruan chat ke DB_FILE:', e);
+  }
+}
+
 // SSE Subscribers
 const sseClients = new Set<Response>();
+
 
 function broadcastSSE(event: string, data: any) {
   const wrappedPayload = {
@@ -451,13 +488,74 @@ app.post('/api/realtime/event', (req: Request, res: Response) => {
 
   // Handle chat messages
   if (type === 'chat:message' && payload?.message?.id) {
-    if (!realtimeState.chatMessages.some((m) => m.id === payload.message.id)) {
-      realtimeState.chatMessages.push(payload.message);
+    const msg = payload.message;
+    if (!realtimeState.chatMessages.some((m) => m.id === msg.id)) {
+      realtimeState.chatMessages.push(msg);
       if (realtimeState.chatMessages.length > 1000) {
         realtimeState.chatMessages = realtimeState.chatMessages.slice(-1000);
       }
     }
+    // Update channel info
+    if (msg.channelId) {
+      const chIdx = realtimeState.chatChannels.findIndex(c => c.id === msg.channelId);
+      if (chIdx >= 0) {
+        realtimeState.chatChannels[chIdx] = {
+          ...realtimeState.chatChannels[chIdx],
+          lastMessage: msg.message,
+          lastMessageTime: msg.timeFormatted,
+          lastSenderName: msg.senderName,
+        };
+      } else if (payload.channel) {
+        realtimeState.chatChannels.unshift(payload.channel);
+      }
+    }
+    persistChatToDbFile();
     broadcastSSE('chat:message', payload);
+  }
+
+  // Handle chat channel creation/update
+  if (type === 'chat:channel' && payload?.id) {
+    const chIdx = realtimeState.chatChannels.findIndex(c => c.id === payload.id);
+    if (chIdx >= 0) {
+      realtimeState.chatChannels[chIdx] = { ...realtimeState.chatChannels[chIdx], ...payload };
+    } else {
+      realtimeState.chatChannels.unshift(payload);
+    }
+    persistChatToDbFile();
+    broadcastSSE('chat:channel', payload);
+  }
+
+  // Handle chat read status
+  if (type === 'chat:read' && payload?.channelId && payload?.userId) {
+    const { channelId, userId } = payload;
+    let modified = false;
+    realtimeState.chatMessages.forEach(m => {
+      if (m.channelId === channelId && Array.isArray(m.readBy) && !m.readBy.includes(userId)) {
+        m.readBy.push(userId);
+        modified = true;
+      }
+    });
+    if (modified) {
+      persistChatToDbFile();
+    }
+    broadcastSSE('chat:read', payload);
+  }
+
+  // Handle chat clear
+  if (type === 'chat:clear') {
+    const cid = payload?.channelId;
+    if (cid) {
+      realtimeState.chatMessages = realtimeState.chatMessages.filter(m => m.channelId !== cid);
+    } else {
+      realtimeState.chatMessages = [];
+    }
+    persistChatToDbFile();
+    broadcastSSE('chat:clear', payload);
+  }
+
+  // Handle chat typing
+  if (type === 'chat:typing' && payload?.channelId) {
+    broadcastSSE('chat:typing', payload);
   }
 
   // Handle general database sync trigger
@@ -519,9 +617,74 @@ app.post('/api/chat/messages', (req: Request, res: Response) => {
     realtimeState.chatMessages.push(msg);
   }
 
-  broadcastSSE('chat:message', { message: msg, channel: req.body.channel });
-  res.json({ ok: true, message: msg });
+  // Update corresponding channel in state
+  const chIdx = realtimeState.chatChannels.findIndex(c => c.id === msg.channelId);
+  let updatedCh = req.body.channel;
+  if (chIdx >= 0) {
+    realtimeState.chatChannels[chIdx] = {
+      ...realtimeState.chatChannels[chIdx],
+      ...(req.body.channel || {}),
+      lastMessage: msg.message,
+      lastMessageTime: msg.timeFormatted,
+      lastSenderName: msg.senderName,
+    };
+    updatedCh = realtimeState.chatChannels[chIdx];
+  } else if (req.body.channel) {
+    realtimeState.chatChannels.unshift(req.body.channel);
+  }
+
+  persistChatToDbFile();
+  broadcastSSE('chat:message', { message: msg, channel: updatedCh });
+  res.json({ ok: true, message: msg, channel: updatedCh });
 });
+
+app.post('/api/chat/channels', (req: Request, res: Response) => {
+  const channel = req.body?.channel;
+  if (!channel?.id || !channel?.name) {
+    return res.status(400).json({ ok: false, error: 'Data channel tidak valid' });
+  }
+  const idx = realtimeState.chatChannels.findIndex(c => c.id === channel.id);
+  if (idx >= 0) {
+    realtimeState.chatChannels[idx] = { ...realtimeState.chatChannels[idx], ...channel };
+  } else {
+    realtimeState.chatChannels.unshift(channel);
+  }
+  persistChatToDbFile();
+  broadcastSSE('chat:channel', channel);
+  res.json({ ok: true, channel });
+});
+
+app.post('/api/chat/read', (req: Request, res: Response) => {
+  const { channelId, userId } = req.body || {};
+  if (!channelId || !userId) {
+    return res.status(400).json({ ok: false, error: 'channelId dan userId diperlukan' });
+  }
+  let modified = false;
+  realtimeState.chatMessages.forEach(m => {
+    if (m.channelId === channelId && Array.isArray(m.readBy) && !m.readBy.includes(userId)) {
+      m.readBy.push(userId);
+      modified = true;
+    }
+  });
+  if (modified) {
+    persistChatToDbFile();
+    broadcastSSE('chat:read', { channelId, userId });
+  }
+  res.json({ ok: true, modified });
+});
+
+app.post('/api/chat/clear', (req: Request, res: Response) => {
+  const { channelId } = req.body || {};
+  if (channelId) {
+    realtimeState.chatMessages = realtimeState.chatMessages.filter(m => m.channelId !== channelId);
+  } else {
+    realtimeState.chatMessages = [];
+  }
+  persistChatToDbFile();
+  broadcastSSE('chat:clear', { channelId });
+  res.json({ ok: true });
+});
+
 
 // 8. AI Error Diagnostics for Google Spreadsheet Sync
 app.post('/api/ai/diagnose-sync', async (req: Request, res: Response) => {

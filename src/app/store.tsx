@@ -22,7 +22,9 @@ import {
 } from './types';
 import { initialUsers, getInitialRooms, initialTransactions, initialMaintenances, initialAuditLogs, initialWorkSessions, initialQcInspections, initialBuildings, initialMeetingRooms } from './data';
 import { initialChatChannels, initialChatMessages, getDirectChannelId, resolveDirectPartner, isUserParticipantInChannel } from './chatData';
-import { persistChatMessage, persistChatChannel, markChatChannelAsRead, fetchChatDatabaseFromServer } from './services/chatStorage';
+import { persistChatMessage, persistChatChannel, markChatChannelAsRead, fetchChatDatabaseFromServer, mapRecordToChatMessage, clearChatMessagesFromServer } from './services/chatStorage';
+import { useRealtimeSync } from './hooks/useRealtimeSync';
+
 import { playNotificationSound } from './lib/sound';
 import { getRealTodayDate, formatIndonesianDate, addDaysToDateStr, getTxDays, getRealLocalDateTimeStr, parseLocalTimeString, formatRupiah, deduplicateRoomCapacityRates, normalizeBuildingName } from './lib/utils';
 import { dataStorage, DataStorageService, StorageNamespace, AppSettings, CompleteStorageDatabase } from './services/dataStorage';
@@ -1636,7 +1638,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Selective Low-Egress listener hanya untuk INSERT pada tabel chat_messages di Supabase (tanpa scan tabel / full database)
+  useRealtimeSync((payload) => {
+    if (payload?.eventType === 'INSERT' && payload.new) {
+      const incoming = mapRecordToChatMessage(payload.new);
+      if (incoming && incoming.id) {
+        setChatMessages(prev => {
+          if (prev.some(m => m.id === incoming.id)) return prev;
+          const me = currentUserRef.current;
+          if (me && incoming.senderId !== me.id && !incoming.readBy?.includes(me.id)) {
+            if (chatSoundEnabledRef.current) playNotificationSound();
+            if (!isChatOpenRef.current || activeChatChannelIdRef.current !== incoming.channelId) {
+              setChatNotificationToast({
+                message: incoming,
+                channelName: incoming.senderName,
+                channelId: incoming.channelId
+              });
+            }
+          }
+          return [...prev, incoming];
+        });
+      }
+    }
+  }, { table: 'chat_messages', event: 'INSERT' });
+
   // Pastikan setiap akun yang sedang login memiliki sesi kerja AKTIF dan mengirim detak jantung (Heartbeat) real-time
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -1897,13 +1924,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     text: string,
     priority: 'NORMAL' | 'PENTING' | 'URGENT' = 'NORMAL',
     isInstruction: boolean = false,
-    replyTo?: { id: string; senderName: string; message: string }
+    replyTo?: { id: string; senderName: string; message?: string; text?: string }
   ) => {
     if (!currentUser || !text.trim()) return;
 
     const now = new Date();
-    const timeFormatted = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+    const timeFormatted = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+    const timestamp = now.toISOString();
 
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1922,7 +1949,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ? {
             replyToId: replyTo.id,
             replyToSender: replyTo.senderName,
-            replyToText: replyTo.message,
+            replyToText: replyTo.message || replyTo.text,
           }
         : {}),
     };
@@ -1946,11 +1973,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // 2. Broadcast real-time to all active accounts (SSE + Broadcast + BroadcastChannel)
     realtimeService.broadcastChatMessage(newMsg, updatedChannel);
-
-    // 3. Simpan dan sinkronkan langsung ke Google Spreadsheet
-    pushChatMessageToSpreadsheet(newMsg, updatedChannel).catch(err => {
-      console.warn('Gagal push chat ke Google Spreadsheet:', err);
-    });
 
     if (isInstruction || priority === 'URGENT') {
       logAudit(
@@ -4615,6 +4637,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ==========================================
   const clearChatHistory = (channelId?: string) => {
     dataStorage.clearChatMessages(channelId);
+    clearChatMessagesFromServer(channelId);
     realtimeService.broadcastChatClear(channelId);
     if (channelId) {
       setChatMessages(prev => prev.filter(m => m.channelId !== channelId));

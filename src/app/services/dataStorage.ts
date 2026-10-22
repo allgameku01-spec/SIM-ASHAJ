@@ -866,12 +866,17 @@ export class DataStorageService {
     this.saveToStorage(updated);
 
     // Siarkan pembaruan database seketika (0ms) ke semua klien & tab real-time
-    try {
-      realtimeService.broadcastDatabaseSync({ timestamp: Date.now(), db: updated });
-    } catch (_) {}
+    const shouldSkipBroadcast = Boolean(options && typeof options === 'object' && options.skipBroadcast);
+    if (!shouldSkipBroadcast) {
+      try {
+        realtimeService.broadcastDatabaseSync({ timestamp: Date.now(), db: updated });
+      } catch (_) {}
+    }
 
     // Sinkronisasi asinkron ke Supabase (Primary Database) secara low-egress
-    if (isSupabaseConfigured()) {
+    // Hindari mengunggah full snapshot (500KB) pada chat real-time untuk mencegah batas egress Supabase habis
+    const shouldSkipFullPayload = Boolean(options && typeof options === 'object' && options.skipFullPayloadSync);
+    if (!shouldSkipFullPayload && isSupabaseConfigured()) {
       try {
         supabase.from('app_database_sync').upsert({
           id: 'main_production_db',
@@ -2063,7 +2068,7 @@ export class DataStorageService {
       updated = [...channels, channel];
     }
 
-    this.saveDatabase({ ...db, chatChannels: updated });
+    this.saveDatabase({ ...db, chatChannels: updated }, { skipCloudSync: true, skipFullPayloadSync: true, skipBroadcast: true });
     return channel;
   }
 
@@ -2073,7 +2078,7 @@ export class DataStorageService {
     const updatedChannels = channels.filter(c => c.id !== channelId);
     const updatedMessages = (db.chatMessages || []).filter(m => m.channelId !== channelId);
 
-    this.saveDatabase({ ...db, chatChannels: updatedChannels, chatMessages: updatedMessages });
+    this.saveDatabase({ ...db, chatChannels: updatedChannels, chatMessages: updatedMessages }, { skipCloudSync: true, skipFullPayloadSync: true, skipBroadcast: true });
     return true;
   }
 
@@ -2125,7 +2130,7 @@ export class DataStorageService {
       ...db, 
       chatMessages: updatedMessages, 
       chatChannels: updatedChannels 
-    });
+    }, { skipCloudSync: true, skipFullPayloadSync: true, skipBroadcast: true });
     return msg;
   }
 
@@ -2134,10 +2139,10 @@ export class DataStorageService {
     if (channelId) {
       const remaining = (db.chatMessages || []).filter(m => m.channelId !== channelId);
       this.cache = { ...db, chatMessages: remaining };
-      this.saveDatabase({ ...db, chatMessages: remaining });
+      this.saveDatabase({ ...db, chatMessages: remaining }, { skipCloudSync: true, skipFullPayloadSync: true, skipBroadcast: true });
     } else {
       this.cache = { ...db, chatMessages: [] };
-      this.saveDatabase({ ...db, chatMessages: [] });
+      this.saveDatabase({ ...db, chatMessages: [] }, { skipCloudSync: true, skipFullPayloadSync: true, skipBroadcast: true });
     }
   }
 

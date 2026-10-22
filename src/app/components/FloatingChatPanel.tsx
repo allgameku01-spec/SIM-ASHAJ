@@ -27,6 +27,7 @@ export function FloatingChatPanel() {
     chatNotificationToast,
     unreadTotalCount,
     openChat,
+    openDirectChatWithUser,
     closeChat,
     setActiveChatChannelId,
     toggleChatSound,
@@ -218,8 +219,8 @@ export function FloatingChatPanel() {
       if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
       const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
-      // Toleransi 90 detik untuk memastikan stabilitas koneksi background tab
-      return !lastSeen || (now - lastSeen <= 90000);
+      // Toleransi 75 detik untuk sinkronisasi presence
+      return Boolean(lastSeen && (now - lastSeen <= 75000));
     });
     if (hasLivePresence) return true;
 
@@ -237,12 +238,16 @@ export function FloatingChatPanel() {
 
       if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
-      // Jika shift statusnya AKTIF dan belum logout, petugas sedang berdinas
+      // Hanya valid jika ada heartbeat aktif dalam 2.5 menit terakhir
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        if (!isNaN(hb) && now - hb <= 120000) return true;
+        return !isNaN(hb) && (now - hb <= 150000);
       }
-      return true;
+      if (s.loginTime) {
+        const lt = parseLocalTimeString(s.loginTime).getTime();
+        return !isNaN(lt) && (now - lt <= 150000);
+      }
+      return false;
     });
 
     return hasActiveShift;
@@ -472,7 +477,7 @@ export function FloatingChatPanel() {
         ? {
             id: replyingTo.id,
             senderName: replyingTo.senderName,
-            text: replyingTo.message
+            message: replyingTo.message
           }
         : undefined
     );
@@ -486,8 +491,7 @@ export function FloatingChatPanel() {
   const handleStartDirectChat = (targetUser: User) => {
     setIsNewChatModalOpen(false);
     setShowGroupInfoModal(false);
-    const channelId = getDirectChannelId(currentUser.id, targetUser.id);
-    openChat(channelId);
+    openDirectChatWithUser(targetUser);
     showToast(`Membuka ruang chat pribadi 2 arah dengan ${targetUser.fullName}`, 'info');
   };
 
