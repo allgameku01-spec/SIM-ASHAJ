@@ -1000,7 +1000,7 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       supabase.from('transactions').select('id, room_id, room_number, building, category, guest_name, guest_type, nik_ktp, kloter, start_date, duration, phone, notes, status, created_user, is_group, group_type, group_name, group_pic, group_pic_phone, group_id, total_pax, include_aula, rent_aula_id, rent_aula_name, rent_aula_duration, rent_aula_duration_days, rent_aula_session, catering_package, catering_pax_count, agency_or_document, spk_number, allocated_room_numbers, allocated_rooms_count, breakfast, breakfast_menu, breakfast_portions, breakfast_days, breakfast_status, rent_type, duration_unit, price_per_night, extra_bed, extra_bed_count, extra_bed_price, extra_bed_notes, check_in_time, check_out_time, payment_status, paid_amount, dp_amount, dp_date, dp_method, dp_note, remaining_amount, va_number, va_account_name, bank_name, bank_account_number, payment_method, payment_date, payment_note, kwitansi_no, cancelled_at, cancel_reason, cancelled_user, extended_count, extend_history, created_at'),
       supabase.from('maintenances').select('id, room_id, building, room_number, category, urgency, technician, description, report_time, status, reported_user, assigned_technician_id, assigned_technician_name, assigned_by_manager, assigned_time, manager_notes, work_completed_time, technician_notes, resolved_time, qc_inspection_id, qc_verdict, facility_type, created_at'),
       supabase.from('qc_inspections').select('id, room_id, building, room_number, inspector_id, inspector_name, inspection_date, cleanliness, linen_bed, ac_electricity, plumbing_water, amenities, result, decision_type, notes, maintenance_id_created, facility_type, created_at'),
-      supabase.from('work_sessions').select('id, user_id, user_name, user_role, login_time, logout_time, duration_seconds, duration_formatted, status, notes').order('login_time', { ascending: false }).limit(100),
+      supabase.from('work_sessions').select('id, user_id, user_name, user_role, department, assigned_building, last_heartbeat, login_time, logout_time, duration_seconds, duration_formatted, status, notes').order('login_time', { ascending: false }).limit(200),
       supabase.from('audit_logs').select('id, timestamp, user_name, role, action, details, duration_minutes, verification_code, document_title, target_id, signatory_name, signatory_role, signatory_nip, qr_code_hash, has_qr_and_signature').order('timestamp', { ascending: false }).limit(200),
       supabase.from('breakfast_menu_items').select('id, name, category, price, description, is_available, allergens'),
       supabase.from('breakfast_orders').select('id, room_number, building, guest_name, phone, kloter, transaction_id, menu_id, menu_name, portions, days, start_date, delivery_time, status, notes, dietary_restriction, price_per_portion, total_price, created_at, updated_at').order('created_at', { ascending: false }).limit(200),
@@ -2890,6 +2890,59 @@ export async function updateChatChannelInSupabaseDirect(c: any): Promise<{ succe
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * 7g. Fungsi tandai pesan telah dibaca (Read Receipt) langsung di Supabase (Low-Egress)
+ */
+export async function markMessagesAsReadInSupabaseDirect(channelId: string, userId: string): Promise<{ success: boolean; updatedCount?: number }> {
+  try {
+    if (!isSupabaseConfigured() || !channelId || !userId) return { success: false, updatedCount: 0 };
+    
+    // Ambil hanya pesan dalam channel ini (low egress: max 50 pesan terakhir, hanya id & read_by)
+    const { data: unreadMsgs, error } = await supabase
+      .from('chat_messages')
+      .select('id, read_by')
+      .eq('channel_id', channelId)
+      .order('timestamp', { ascending: false })
+      .limit(50);
+
+    if (error || !Array.isArray(unreadMsgs) || unreadMsgs.length === 0) {
+      return { success: true, updatedCount: 0 };
+    }
+
+    const needUpdate = unreadMsgs.filter(m => {
+      let readByArr: string[] = [];
+      if (Array.isArray(m.read_by)) {
+        readByArr = m.read_by;
+      } else if (typeof m.read_by === 'string') {
+        try { readByArr = JSON.parse(m.read_by); } catch (_) { readByArr = [m.read_by]; }
+      }
+      return !readByArr.includes(userId);
+    });
+
+    if (needUpdate.length === 0) return { success: true, updatedCount: 0 };
+
+    // Update setiap baris pesan yang belum dibaca dengan menambahkan userId ke array read_by
+    await Promise.allSettled(
+      needUpdate.map(m => {
+        let readByArr: string[] = [];
+        if (Array.isArray(m.read_by)) {
+          readByArr = Array.from(new Set([...m.read_by, userId]));
+        } else if (typeof m.read_by === 'string') {
+          try { readByArr = Array.from(new Set([...JSON.parse(m.read_by), userId])); } catch (_) { readByArr = Array.from(new Set([m.read_by, userId])); }
+        } else {
+          readByArr = [userId];
+        }
+        return supabase.from('chat_messages').update({ read_by: readByArr }).eq('id', m.id);
+      })
+    );
+
+    return { success: true, updatedCount: needUpdate.length };
+  } catch (err) {
+    console.warn('[Supabase] Gagal update read receipt:', err);
+    return { success: false, updatedCount: 0 };
   }
 }
 

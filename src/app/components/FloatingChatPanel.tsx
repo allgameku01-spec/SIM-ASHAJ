@@ -238,14 +238,17 @@ export function FloatingChatPanel() {
 
       if (!matchId && !matchUsername && !matchClean && !matchName) return false;
 
-      // Jika ada lastHeartbeat, cek dalam toleransi 5 menit
+      // Cek heartbeat sesi kerja: toleransi 90 detik
       if (s.lastHeartbeat) {
         const hb = new Date(s.lastHeartbeat).getTime();
-        if (!isNaN(hb) && (now - hb <= 300000)) return true;
+        if (!isNaN(hb) && (now - hb <= 90000)) return true;
+      } else if (s.loginTime) {
+        const start = parseLocalTimeString(s.loginTime).getTime();
+        if (!isNaN(start) && (now - start <= 90000)) return true;
       }
 
-      // Jika statusnya AKTIF dan belum checkout / tanpa logoutTime, pengguna sedang bertugas aktif!
-      return true;
+      // Jika tidak ada detak jantung/aktivitas dalam 90 detik terakhir, petugas dinyatakan OFFLINE
+      return false;
     });
 
     return hasActiveShift;
@@ -457,6 +460,15 @@ export function FloatingChatPanel() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [channelMessages.length, activeChatChannelId, isChatOpen, currentChannelTyping]);
+
+  // Otomatis tandai pesan sebagai dibaca saat panel obrolan sedang terbuka di saluran ini
+  useEffect(() => {
+    if (!isChatOpen || !activeChatChannelId || !currentUser) return;
+    const hasUnread = channelMessages.some(m => m.senderId !== currentUser.id && (!m.readBy || !m.readBy.includes(currentUser.id)));
+    if (hasUnread) {
+      markChannelAsRead(activeChatChannelId);
+    }
+  }, [isChatOpen, activeChatChannelId, channelMessages, currentUser?.id]);
 
   // Clear reply state when switching channels
   useEffect(() => {
@@ -1014,9 +1026,9 @@ export function FloatingChatPanel() {
 
                                 {/* Read Receipt & Delivery Indicator */}
                                 {isMe && (
-                                  <div className="mt-0.5 flex items-center justify-end space-x-1 text-[8px] text-emerald-200/90 shrink-0">
-                                    <i className={`fa-solid ${readCount > 0 ? 'fa-check-double text-gold-300' : 'fa-check'}`}></i>
-                                    <span>
+                                  <div className="mt-0.5 flex items-center justify-end space-x-1 text-[8px] shrink-0">
+                                    <i className={`fa-solid ${readCount > 0 ? 'fa-check-double text-sky-300' : 'fa-check text-emerald-200/70'}`}></i>
+                                    <span className={readCount > 0 ? 'text-sky-200 font-bold' : 'text-emerald-200/80'}>
                                       {activeChannel.type === 'DIRECT'
                                         ? readCount > 0
                                           ? 'Dibaca'

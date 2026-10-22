@@ -635,6 +635,54 @@ export class DataStorageService {
       mergedAppSettings.appLogo = OFFICIAL_APP_LOGO;
     }
 
+    // 11. Work Sessions: Gabungkan sesi dari Cloud (Supabase) dan Local secara konsisten antar akun & perangkat
+    const wsMap = new Map<string, WorkSession>();
+    for (const s of (cloud.workSessions || [])) {
+      if (s && s.id) wsMap.set(s.id, s);
+    }
+    for (const s of (local.workSessions || [])) {
+      if (!s || !s.id) continue;
+      const remote = wsMap.get(s.id);
+      if (!remote) {
+        wsMap.set(s.id, s);
+      } else if (s.status === 'SELESAI' && remote.status !== 'SELESAI') {
+        wsMap.set(s.id, s);
+      } else if (remote.status === 'SELESAI' && s.status !== 'SELESAI') {
+        wsMap.set(s.id, remote);
+      } else if ((s.durationSeconds || 0) > (remote.durationSeconds || 0)) {
+        wsMap.set(s.id, { ...remote, ...s });
+      }
+    }
+    const finalMergedWorkSessions = Array.from(wsMap.values()).sort((a, b) => (b.loginTime || '').localeCompare(a.loginTime || ''));
+
+    // 12. Chat Channels: Gabungkan saluran chat
+    const chMap = new Map<string, ChatChannel>();
+    for (const ch of initialChatChannels) chMap.set(ch.id, { ...ch });
+    for (const ch of (cloud.chatChannels || [])) {
+      if (ch && ch.id) chMap.set(ch.id, { ...(chMap.get(ch.id) || {}), ...ch });
+    }
+    for (const ch of (local.chatChannels || [])) {
+      if (ch && ch.id) chMap.set(ch.id, { ...(chMap.get(ch.id) || {}), ...ch });
+    }
+    const finalMergedChatChannels = Array.from(chMap.values());
+
+    // 13. Chat Messages: Gabungkan pesan chat & deduplikasi read_by
+    const msgMap = new Map<string, ChatMessage>();
+    for (const m of (cloud.chatMessages || [])) {
+      if (m && m.id) msgMap.set(m.id, m);
+    }
+    for (const m of (local.chatMessages || [])) {
+      if (!m || !m.id) continue;
+      const prevMsg = msgMap.get(m.id);
+      if (!prevMsg) {
+        msgMap.set(m.id, m);
+      } else {
+        const readSet = new Set([...(prevMsg.readBy || []), ...(m.readBy || [])]);
+        msgMap.set(m.id, { ...prevMsg, ...m, readBy: Array.from(readSet) });
+      }
+    }
+    const finalMergedChatMessages = Array.from(msgMap.values()).sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+
     return {
       schemaVersion: 4,
       appName: local.appName || cloud.appName || 'SIM Asrama Haji Jakarta',
@@ -647,10 +695,10 @@ export class DataStorageService {
       transactions: mergedTransactions,
       maintenances: mergedMaintenances,
       qcInspections: mergedQc,
-      workSessions: local.workSessions && local.workSessions.length > 0 ? local.workSessions : (cloud.workSessions || []),
+      workSessions: finalMergedWorkSessions,
       auditLogs: [...(local.auditLogs || []), ...(cloud.auditLogs || [])].slice(0, 250),
-      chatChannels: local.chatChannels && local.chatChannels.length > 0 ? local.chatChannels : (cloud.chatChannels || []),
-      chatMessages: local.chatMessages && local.chatMessages.length > 0 ? local.chatMessages : (cloud.chatMessages || []),
+      chatChannels: finalMergedChatChannels,
+      chatMessages: finalMergedChatMessages,
       breakfastMenuItems: mergedMenuItems.length > 0 ? mergedMenuItems : (local.breakfastMenuItems || cloud.breakfastMenuItems || []),
       breakfastOrders: mergedBreakfastOrders,
       roomCapacityRates: mergedRates.length > 0 ? deduplicateRoomCapacityRates(mergedRates) : (local.roomCapacityRates || cloud.roomCapacityRates || []),

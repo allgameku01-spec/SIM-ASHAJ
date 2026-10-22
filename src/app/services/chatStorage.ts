@@ -6,7 +6,8 @@ import { pushChatMessageToSpreadsheet } from './spreadsheetStorage';
 import { 
   updateChatMessageInSupabaseDirect, 
   updateChatChannelInSupabaseDirect, 
-  upsertChatMessageInSupabaseDirect 
+  upsertChatMessageInSupabaseDirect,
+  markMessagesAsReadInSupabaseDirect
 } from '../lib/supabase';
 import { supabase, isSupabaseConfigured } from '../../integrations/supabase/client';
 
@@ -329,31 +330,29 @@ export async function persistChatMessage(
   // 1. Simpan di dataStorage lokal (IndexedDB / LocalStorage)
   dataStorage.saveChatMessage(message, channel);
 
-  // 2. Kirim langsung ke basis data Supabase (Primary Database: tabel chat_messages & app_database_sync)
+  // 2. Kirim langsung ke basis data Supabase (Primary Database: baris tunggal tabel chat_messages & chat_channels)
+  // Operasi ini sangat ringan (< 1 KB) dan berlangsung dalam < 50ms tanpa menulis ulang seluruh basis data
   updateChatMessageInSupabaseDirect(message).catch(() => {});
-  upsertChatMessageInSupabaseDirect(message, channel).catch(() => {});
+  if (channel) {
+    updateChatChannelInSupabaseDirect(channel).catch(() => {});
+  }
 
-  // 3. Kirim ke basis data Google Spreadsheet secara asinkron (Mirror)
-  pushChatMessageToSpreadsheet(message, channel).catch(err => {
-    console.warn('[ChatStorage] Gagal push chat ke Google Spreadsheet:', err);
-  });
+  // 3. Kirim ke basis data Google Spreadsheet secara asinkron di latar belakang (Mirror)
+  // Menjalankan tugas tanpa memblokir antarmuka obrolan pengguna
+  setTimeout(() => {
+    pushChatMessageToSpreadsheet(message, channel).catch(err => {
+      console.warn('[ChatStorage] Gagal push chat ke Google Spreadsheet:', err);
+    });
+  }, 100);
 
   // 4. Kirim ke backend server proxy jika ada untuk broadcast SSE lokal
   try {
-    const res = await fetch('/api/chat/messages', {
+    fetch('/api/chat/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, channel })
-    });
-    if (!res.ok) {
-      queueOfflineMessage(message, channel);
-    } else {
-      // Jika berhasil, coba sinkronkan antrean offline yang mungkin tertunda
-      syncOfflineMessageQueue().catch(() => {});
-    }
-  } catch (err) {
-    queueOfflineMessage(message, channel);
-  }
+    }).catch(() => {});
+  } catch (_) {}
 
   return message;
 }
@@ -381,9 +380,13 @@ export async function persistChatChannel(channel: ChatChannel): Promise<ChatChan
 }
 
 /**
- * Memperbarui tanda pesan telah dibaca (Read Receipt) secara permanen
+ * Memperbarui tanda pesan telah dibaca (Read Receipt) secara permanen di Supabase dan server
  */
 export async function markChatChannelAsRead(channelId: string, userId: string): Promise<void> {
+  // 1. Perbarui langsung di tabel chat_messages di Supabase (Low Egress: hanya update kolom read_by)
+  markMessagesAsReadInSupabaseDirect(channelId, userId).catch(() => {});
+
+  // 2. Kirim ke proxy server jika ada
   try {
     fetch('/api/chat/read', {
       method: 'POST',

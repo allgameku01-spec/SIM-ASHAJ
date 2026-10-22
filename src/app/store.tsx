@@ -786,23 +786,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
           wsMap.set(s.id, { ...remoteS, ...s });
         }
       }
-      const sortedSessions = Array.from(wsMap.values()).sort((a, b) => (b.loginTime || '').localeCompare(a.loginTime || ''));
 
-      // Hitung online presences langsung dari sesi aktif yang terverifikasi
+      // Deteksi & selesaikan sesi gantung (Ghost Sessions: AKTIF tapi tidak ada heartbeat > 30 menit)
       const now = Date.now();
+      const me = currentUserRef.current;
+      const sanitizedSessions = Array.from(wsMap.values()).map(s => {
+        if (!s || s.status !== 'AKTIF' || s.logoutTime) return s;
+        // Jangan auto-close sesi akun yang sedang aktif digunakan di jendela browser ini
+        if (me && (s.userId === me.id || s.userName === me.fullName)) return s;
+
+        const hbTime = s.lastHeartbeat ? new Date(s.lastHeartbeat).getTime() : 0;
+        const start = s.loginTime ? parseLocalTimeString(s.loginTime).getTime() : 0;
+        const lastActivity = hbTime || start;
+
+        // Jika tidak ada detak jantung lebih dari 20 menit (1200000 ms), selesaikan sesi gantung
+        if (lastActivity && now - lastActivity > 1200000) {
+          const sDur = Math.max(60, Math.floor(((hbTime || (start + 60000)) - start) / 1000));
+          const finishedSession: WorkSession = {
+            ...s,
+            status: 'SELESAI',
+            logoutTime: s.lastHeartbeat ? getRealLocalDateTimeStr(new Date(s.lastHeartbeat)) : s.loginTime,
+            durationSeconds: sDur,
+            durationFormatted: formatHMS(sDur),
+            notes: (s.notes ? s.notes + ' • ' : '') + 'Sesi diselesaikan otomatis oleh sistem'
+          };
+          dataStorage.saveWorkSession(finishedSession);
+          upsertWorkSessionInSupabaseDirect(finishedSession).catch(() => {});
+          return finishedSession;
+        }
+        return s;
+      });
+
+      const sortedSessions = sanitizedSessions.sort((a, b) => (b.loginTime || '').localeCompare(a.loginTime || ''));
+
+      // Hitung online presences langsung dari presences aktif Supabase WebSocket + sesi real-time ketat
       const activePresences: OnlinePresenceInfo[] = [];
       const seenUserIds = new Set<string>();
 
+      // 1. Ambil dari live presences WebSocket Supabase
+      realtimeService.getActivePresences().forEach(p => {
+        const lastSeen = p.lastSeenMs || (p as any).lastSeen || 0;
+        if (p && p.userId && (!lastSeen || now - lastSeen <= 90000) && !seenUserIds.has(p.userId)) {
+          seenUserIds.add(p.userId);
+          activePresences.push(p);
+        }
+      });
+
+      // 2. Tambahkan sesi kerja aktif yang memiliki heartbeat dalam 90 detik terakhir
       for (const s of sortedSessions) {
         if (s && s.userId && s.status === 'AKTIF' && !s.logoutTime && !seenUserIds.has(s.userId)) {
-          let isRecent = true;
+          let isRecent = false;
           if (s.lastHeartbeat) {
             const hb = new Date(s.lastHeartbeat).getTime();
-            if (!isNaN(hb) && now - hb > 180000) isRecent = false;
+            if (!isNaN(hb) && now - hb <= 90000) isRecent = true;
           } else if (s.loginTime) {
             const start = parseLocalTimeString(s.loginTime).getTime();
-            if (!isNaN(start) && now - start > 4 * 3600 * 1000) isRecent = false;
+            if (!isNaN(start) && now - start <= 90000) isRecent = true;
           }
+
           if (isRecent) {
             seenUserIds.add(s.userId);
             activePresences.push({
@@ -819,14 +860,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-
-      // Gabungkan dengan presences lokal dari realtimeService jika ada
-      realtimeService.getActivePresences().forEach(p => {
-        if (p && p.userId && !seenUserIds.has(p.userId)) {
-          seenUserIds.add(p.userId);
-          activePresences.push(p);
-        }
-      });
 
       setOnlinePresences(activePresences);
       return sortedSessions;
@@ -1052,7 +1085,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isSyncingLiveRef.current = true;
 
       try {
-        // 1. Kirim presence lokal
+        // 1. Kirim presence lokal via WebSocket Supabase Realtime
         realtimeService.sendHeartbeat({
           userId: me.id,
           userName: me.fullName,
@@ -1062,35 +1095,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
         realtimeService.pollNow();
 
-        // 2. Tarik pesan chat, saluran, dan sesi petugas terbaru langsung dari Google Spreadsheet
-        const liveData = await fetchLiveChatAndPresenceFromSpreadsheet();
-        if (liveData) {
-          const hasMessages = Array.isArray(liveData.messages) && liveData.messages.length > 0;
-          const hasSessions = Array.isArray(liveData.sessions) && liveData.sessions.length > 0;
-          const hasChannels = Array.isArray(liveData.channels) && liveData.channels.length > 0;
+        // 2. Refresh workSessions ringan dari Supabase (Low-Egress: hanya select tabel work_sessions setiap 30 detik)
+        const nowMs = Date.now();
+        if (nowMs - lastSupabaseHbRef.current > 30000) {
+          lastSupabaseHbRef.current = nowMs;
+          const { data: freshSessions } = await supabase
+            .from('work_sessions')
+            .select('id, user_id, user_name, user_role, department, assigned_building, last_heartbeat, login_time, logout_time, duration_seconds, duration_formatted, status, notes')
+            .order('login_time', { ascending: false })
+            .limit(100);
 
-          if (hasMessages || hasSessions || hasChannels) {
+          if (Array.isArray(freshSessions) && freshSessions.length > 0) {
+            const mapped = freshSessions.map(mapSupabaseWorkSessionToAppWorkSession);
             const currentDb = dataStorage.getDatabase();
             mergeAndApplyCloudRealtimeData({
               ...currentDb,
-              chatMessages: hasMessages ? liveData.messages : currentDb.chatMessages,
-              workSessions: hasSessions ? liveData.sessions : currentDb.workSessions,
-              chatChannels: hasChannels ? liveData.channels : currentDb.chatChannels,
+              workSessions: mapped
             });
           }
         }
-
-        // 3. Fallback server proxy lokal jika ada
-        const chatDb = await fetchChatDatabaseFromServer().catch(() => null);
-        if (chatDb && (chatDb.messages.length > 0 || chatDb.channels.length > 0)) {
-          mergeAndApplyCloudRealtimeData({
-            ...dataStorage.getDatabase(),
-            chatChannels: chatDb.channels,
-            chatMessages: chatDb.messages
-          });
-        }
       } catch (err) {
-        console.warn('[SyncLive] Gagal polling live spreadsheet:', err);
+        console.warn('[SyncLive] Gagal update heartbeat/presence:', err);
       } finally {
         isSyncingLiveRef.current = false;
       }
@@ -1640,7 +1665,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Selective Low-Egress listener hanya untuk INSERT pada tabel chat_messages di Supabase (tanpa scan tabel / full database)
+  // Selective Low-Egress listener untuk INSERT & UPDATE pada tabel chat_messages di Supabase (Read Receipt & Instant Message Sync)
   useRealtimeSync((payload) => {
     if (payload?.eventType === 'INSERT' && payload.new) {
       const incoming = mapRecordToChatMessage(payload.new);
@@ -1661,8 +1686,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return [...prev, incoming];
         });
       }
+    } else if (payload?.eventType === 'UPDATE' && payload.new) {
+      const updated = mapRecordToChatMessage(payload.new);
+      if (updated && updated.id) {
+        setChatMessages(prev =>
+          prev.map(m => {
+            if (m.id === updated.id) {
+              const combinedRead = Array.from(new Set([...(m.readBy || []), ...(updated.readBy || [])]));
+              return { ...m, ...updated, readBy: combinedRead };
+            }
+            return m;
+          })
+        );
+      }
     }
-  }, { table: 'chat_messages', event: 'INSERT' });
+  }, { table: 'chat_messages', event: '*' });
 
   // Pastikan setiap akun yang sedang login memiliki sesi kerja AKTIF dan mengirim detak jantung (Heartbeat) real-time
 
