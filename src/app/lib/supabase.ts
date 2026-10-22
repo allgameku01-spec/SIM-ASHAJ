@@ -945,7 +945,55 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       return null;
     }
 
-    const directUsers = usersRes.data && usersRes.data.length > 0 ? usersRes.data.map(mapSupabaseUserToAppUser) : null;
+    const syncPayload = (syncRes?.data?.database_payload as CompleteStorageDatabase) || null;
+
+    const relBuildings = buildingsRes?.data && Array.isArray(buildingsRes.data)
+      ? buildingsRes.data.map(mapSupabaseBuildingToAppBuilding)
+      : [];
+
+    const relRooms = roomsRes?.data && Array.isArray(roomsRes.data)
+      ? roomsRes.data.map(mapSupabaseRoomToAppRoom)
+      : [];
+
+    const relMeetingRooms = meetingRoomsRes?.data && Array.isArray(meetingRoomsRes.data)
+      ? meetingRoomsRes.data.map(mapSupabaseMeetingRoomToAppMeetingRoom)
+      : [];
+
+    const relTransactions = transactionsRes?.data && Array.isArray(transactionsRes.data)
+      ? transactionsRes.data.map(mapSupabaseTransactionToAppTransaction)
+      : [];
+
+    const relMaintenances = maintenancesRes?.data && Array.isArray(maintenancesRes.data)
+      ? maintenancesRes.data.map(mapSupabaseMaintenanceToAppMaintenance)
+      : [];
+
+    const relQc = qcRes?.data && Array.isArray(qcRes.data)
+      ? qcRes.data.map(mapSupabaseQcToAppQc)
+      : [];
+
+    const relSessions = sessionsRes?.data && Array.isArray(sessionsRes.data)
+      ? sessionsRes.data.map(mapSupabaseWorkSessionToAppWorkSession)
+      : [];
+
+    const relAudit = auditRes?.data && Array.isArray(auditRes.data)
+      ? auditRes.data.map(mapSupabaseAuditLogToAppAuditLog)
+      : [];
+
+    const relOrders = breakfastOrdersRes?.data && Array.isArray(breakfastOrdersRes.data)
+      ? breakfastOrdersRes.data.map(mapSupabaseBreakfastOrderToAppBreakfastOrder)
+      : [];
+
+    const relMenu = breakfastMenuRes?.data && Array.isArray(breakfastMenuRes.data)
+      ? breakfastMenuRes.data.map(mapSupabaseBreakfastMenuItemToAppMenuItem)
+      : [];
+
+    const relRates = ratesRes?.data && Array.isArray(ratesRes.data)
+      ? ratesRes.data.map(mapSupabaseRoomCapacityRateToAppRate)
+      : [];
+
+    const directUsers = usersRes?.data && Array.isArray(usersRes.data) && usersRes.data.length > 0
+      ? usersRes.data.map(mapSupabaseUserToAppUser)
+      : null;
 
     // AUTO-SEED: Jika tabel Supabase masih kosong melompong (baru dieksekusi schema.sql),
     // otomatis unggah seluruh data master awal (Kamar, Gedung, Petugas, Tarif) ke Supabase
@@ -994,9 +1042,18 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       ? relAudit
       : (Array.isArray(syncPayload?.auditLogs) ? syncPayload.auditLogs.slice(0, 300) : []);
 
-    const mergedUsers = (directUsers !== null && directUsers !== undefined)
-      ? directUsers
-      : (syncPayload?.users && syncPayload.users.length > 0 ? syncPayload.users : initialUsers);
+    // Gabungkan users dari master default, snapshot, dan tabel relasional users (relasional prioritas tertinggi)
+    const userMap = new Map<string, User>();
+    for (const u of initialUsers) {
+      if (u?.username) userMap.set(u.username.toLowerCase(), u);
+    }
+    for (const u of (syncPayload?.users || [])) {
+      if (u?.username) userMap.set(u.username.toLowerCase(), u);
+    }
+    for (const u of (directUsers || [])) {
+      if (u?.username) userMap.set(u.username.toLowerCase(), u);
+    }
+    const mergedUsers = Array.from(userMap.values());
 
     const mergedOrders = !breakfastOrdersRes.error
       ? relOrders
@@ -1095,7 +1152,7 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
       breakfastMenuItems: relMenu.length > 0 ? relMenu : (syncPayload?.breakfastMenuItems || []),
       breakfastOrders: mergedOrders,
       roomCapacityRates: relRates,
-      passwordResetRequests: pwdRes.data || syncPayload?.passwordResetRequests || []
+      passwordResetRequests: Array.isArray(syncPayload?.passwordResetRequests) ? syncPayload.passwordResetRequests : []
     };
 
     // Pastikan app_database_sync (main_production_db & root_snapshot) selalu selaras dengan tabel relasional
@@ -1109,6 +1166,28 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
     return resultDb;
   } catch (e) {
     console.warn('Gagal membaca data dari Supabase:', e);
+    return null;
+  }
+}
+
+/**
+ * Ambil data user spesifik langsung dari tabel users di Supabase berdasarkan username
+ * Query ini sangat hemat bandwidth (< 1 KB egress) dan instan (< 100ms) untuk proses autentikasi login
+ */
+export async function fetchUserByUsernameFromSupabase(username: string): Promise<User | null> {
+  try {
+    if (!isSupabaseConfigured() || !username) return null;
+    const clean = username.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, full_name, role, password, department, supervisor_id, assigned_building, phone, status, email, nip, is_owner, signature_url, qr_code_url, signature_history')
+      .ilike('username', clean)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return mapSupabaseUserToAppUser(data);
+  } catch (err) {
+    console.warn('[Supabase] Gagal mengambil user per username:', err);
     return null;
   }
 }

@@ -1115,9 +1115,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUser?.id, isChatOpen, activeChatChannelId]);
 
   const pullFromCentralDatabase = async () => {
-    showToast('Menarik & menyamakan data dari Google Spreadsheet...', 'info');
+    showToast('Menarik & menyamakan data dari basis data Supabase...', 'info');
     try {
-      const cloudDb = await dataStorage.hydrateFromSpreadsheet(true);
+      const cloudDb = await dataStorage.hydrateFromSupabase(true);
       if (cloudDb) {
         setUsers(cloudDb.users);
         setBuildings(cloudDb.buildings || []);
@@ -1128,8 +1128,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cloudDb.maintenances || []
         );
         setRooms(nextRooms);
-        setTransactions(cloudDb.transactions);
-        setMaintenances(cloudDb.maintenances);
+        setTransactions(cloudDb.transactions || []);
+        setMaintenances(cloudDb.maintenances || []);
         setAuditLogs(prev => {
           const cloudLogs = cloudDb.auditLogs || [];
           const cloudIds = new Set(cloudLogs.map(l => l.id));
@@ -1137,7 +1137,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return [...unsyncedLocal, ...cloudLogs].slice(0, 250);
         });
         mergeAndApplyCloudRealtimeData(cloudDb);
-        setQcInspections(cloudDb.qcInspections);
+        setQcInspections(cloudDb.qcInspections || []);
         setBreakfastMenuItems(cloudDb.breakfastMenuItems || []);
         setBreakfastOrders(cloudDb.breakfastOrders || []);
         if (cloudDb.roomCapacityRates && Array.isArray(cloudDb.roomCapacityRates)) {
@@ -1150,7 +1150,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (hasChanges) {
           dataStorage.saveRooms(nextRooms, { skipCloudSync: true });
         }
-        setSupabaseSyncState(dataStorage.getSpreadsheetSyncState());
+        setSupabaseSyncState(dataStorage.getSupabaseSyncState());
         await verifyDatabaseChecksum(true, {
           buildings: cloudDb.buildings || [],
           rooms: nextRooms,
@@ -1158,19 +1158,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           transactions: cloudDb.transactions || [],
           maintenances: cloudDb.maintenances || []
         });
-        showToast(`Sinkronisasi Berhasil: ${cloudDb.buildings?.length || 0} Gedung, ${cloudDb.rooms?.length || 0} Kamar, ${cloudDb.transactions?.length || 0} Transaksi termuat dari Spreadsheet.`, 'success');
+        showToast(`Sinkronisasi Berhasil: ${cloudDb.buildings?.length || 0} Gedung, ${cloudDb.rooms?.length || 0} Kamar, ${cloudDb.users?.length || 0} Petugas dari Supabase.`, 'success');
       } else {
-        showToast('Tidak dapat menarik data dari Google Spreadsheet.', 'warning');
+        showToast('Tidak dapat menarik data dari Supabase.', 'warning');
       }
     } catch (err: any) {
-      showToast(`Gagal menarik data spreadsheet: ${err?.message || 'Error'}`, 'error');
+      showToast(`Gagal menarik data Supabase: ${err?.message || 'Error'}`, 'error');
     }
   };
 
   const manualSyncSupabase = async () => {
-    showToast('Menghubungi Google Spreadsheet...', 'info');
+    showToast('Menghubungi basis data Supabase...', 'info');
     try {
-      const cloudDb = await dataStorage.hydrateFromSpreadsheet(true);
+      const cloudDb = await dataStorage.hydrateFromSupabase(true);
       if (cloudDb) {
         setUsers(cloudDb.users);
         setBuildings(cloudDb.buildings || []);
@@ -1195,7 +1195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setPasswordResetRequests(cloudDb.passwordResetRequests);
         }
         if (cloudDb.appSettings) setAppSettings(cloudDb.appSettings);
-        setSupabaseSyncState(dataStorage.getSpreadsheetSyncState());
+        setSupabaseSyncState(dataStorage.getSupabaseSyncState());
         if (hasChanges) {
           dataStorage.saveRooms(nextRooms, { skipCloudSync: true });
         }
@@ -1206,31 +1206,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
           transactions: cloudDb.transactions || [],
           maintenances: cloudDb.maintenances || []
         });
-        showToast(`Sinkronisasi Sukses: ${cloudDb.buildings?.length || 0} Gedung, ${cloudDb.rooms?.length || 0} Kamar, ${cloudDb.transactions?.length || 0} Transaksi.`, 'success');
+        showToast(`Sinkronisasi Sukses: ${cloudDb.buildings?.length || 0} Gedung, ${cloudDb.rooms?.length || 0} Kamar, ${cloudDb.users?.length || 0} Petugas dari Supabase.`, 'success');
       } else {
-        const pushRes = await dataStorage.pushAllToSpreadsheet();
-        setSupabaseSyncState(dataStorage.getSpreadsheetSyncState());
+        const pushRes = await dataStorage.pushAllToSupabase();
+        setSupabaseSyncState(dataStorage.getSupabaseSyncState());
         await verifyDatabaseChecksum(true);
         if (pushRes.success) {
-          showToast('Data berhasil disimpan ke Google Spreadsheet!', 'success');
+          showToast('Data berhasil disimpan ke basis data Supabase!', 'success');
         } else {
-          showToast(`Koneksi Spreadsheet: ${pushRes.error || 'Terhubung'}`, 'warning');
+          showToast(`Peringatan: ${pushRes.error || 'Gagal menyimpan ke Supabase'}`, 'warning');
         }
       }
     } catch (err: any) {
-      showToast(`Gagal sinkronisasi: ${err?.message || 'Error'}`, 'error');
+      showToast(`Kendala sinkronisasi: ${err?.message || 'Error'}`, 'error');
     }
   };
 
   const pushAllToSupabase = async () => {
-    showToast('Mengunggah seluruh basis data ke Google Spreadsheet...', 'info');
-    const res = await dataStorage.pushAllToSpreadsheet();
-    setSupabaseSyncState(dataStorage.getSpreadsheetSyncState());
+    showToast('Mengunggah seluruh basis data ke Supabase (Primary Database)...', 'info');
+    const res = await dataStorage.pushAllToSupabase();
+    setSupabaseSyncState(dataStorage.getSupabaseSyncState());
     await verifyDatabaseChecksum(true);
     if (res.success) {
-      showToast('Seluruh data berhasil disimpan & diverifikasi dengan Google Spreadsheet!', 'success');
+      showToast('Seluruh data berhasil disimpan & diverifikasi dengan Supabase!', 'success');
     } else {
-      showToast(`Gagal mengunggah ke Spreadsheet: ${res.error || 'Error'}`, 'error');
+      showToast(`Gagal mengunggah ke Supabase: ${res.error || 'Error'}`, 'error');
     }
   };
 
@@ -1614,7 +1614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         // Fallback cepat via server cache jika payload tidak menyertakan db utuh
-        dataStorage.hydrateFromSpreadsheet(false).then((freshDb) => {
+        dataStorage.hydrateFromSupabase(false).then((freshDb) => {
           if (freshDb) {
             if (Array.isArray(freshDb.buildings) && freshDb.buildings.length > 0) setBuildings(freshDb.buildings);
             if (Array.isArray(freshDb.rooms) && freshDb.rooms.length > 0) setRooms(freshDb.rooms);

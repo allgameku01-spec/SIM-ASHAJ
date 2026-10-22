@@ -45,6 +45,7 @@ import {
 } from './spreadsheetStorage';
 import { 
   fetchFullDatabaseFromSupabase, 
+  fetchUserByUsernameFromSupabase,
   pushAllToTargetSupabase, 
   SUPABASE_ANON_KEY,
   updateTransactionInSupabaseDirect,
@@ -179,6 +180,7 @@ export class DataStorageService {
   private syncDebounceTimer: any = null;
   private hasHydratedFromCloud: boolean = false;
   private pendingSyncDb: CompleteStorageDatabase | null = null;
+  private lastHydratedSupabaseTime: number = 0;
   private syncListeners: Array<(event: { status: 'syncing' | 'connected' | 'error'; db: CompleteStorageDatabase; error?: string | null }) => void> = [];
 
   private loadFromStorage(): CompleteStorageDatabase | null {
@@ -371,6 +373,11 @@ export class DataStorageService {
    * Jika Supabase offline atau belum terkonfigurasi, otomatis fallback ke server backend / Google Spreadsheet.
    */
   public async hydrateFromSupabase(forceOverwrite: boolean = false): Promise<CompleteStorageDatabase | null> {
+    // Optimasi Egress: Jika tidak dipaksa overwrite dan baru saja dihidrasi dalam 8 detik terakhir, gunakan cache lokal
+    if (!forceOverwrite && this.hasHydratedFromCloud && this.cache && (Date.now() - this.lastHydratedSupabaseTime < 8000)) {
+      return this.cache;
+    }
+
     try {
       this.syncStatus = 'syncing';
       this.notifySyncListeners({ status: 'syncing', db: this.getDatabase() });
@@ -416,6 +423,7 @@ export class DataStorageService {
         this.cache = mergedDb;
         this.saveToStorage(mergedDb);
         this.lastSyncTime = new Date().toISOString();
+        this.lastHydratedSupabaseTime = Date.now();
         this.syncStatus = 'connected';
         this.syncError = null;
         this.hasHydratedFromCloud = true;
@@ -893,6 +901,13 @@ export class DataStorageService {
 
   public getUserByUsername(username: string): User | undefined {
     return this.getDatabase().users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  }
+
+  /**
+   * Mengambil data satu pengguna langsung dari Supabase secara instan dan hemat egress
+   */
+  public async fetchUserDirectFromSupabase(username: string): Promise<User | null> {
+    return fetchUserByUsernameFromSupabase(username);
   }
 
   public saveUser(user: User): User {

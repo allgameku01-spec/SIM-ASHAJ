@@ -605,6 +605,20 @@
       "phone": "-",
       "status": "Aktif",
       "isOwner": false
+    },
+    {
+      "id": "usr-3",
+      "username": "zain",
+      "fullName": "Zainul Syaifudin",
+      "role": "Admin",
+      "password": "12345",
+      "department": "Pimpinan / Tata Usaha",
+      "supervisorId": "u-superadmin",
+      "assignedBuilding": "Semua Gedung",
+      "phone": "-",
+      "status": "Aktif",
+      "email": "zain.syaa@gmail.com",
+      "isOwner": false
     }
   ],
   "meetingRooms": [
@@ -1493,16 +1507,15 @@
       "userId": "u-superadmin",
       "userName": "Administrator Management",
       "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
       "loginTime": "2026-10-21 16:27:13",
       "logoutTime": null,
       "durationSeconds": 5,
       "durationFormatted": "0 Jam 0 Menit 5 Detik (Sedang Berjalan)",
       "status": "AKTIF",
-      "department": "Pimpinan & IT UPT",
-      "assignedBuilding": "Semua Gedung",
       "lastHeartbeat": "2026-10-21T09:27:18.954Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
       "id": "SESI-4908-IN",
@@ -1517,8 +1530,7 @@
       "durationFormatted": "0 Jam 28 Menit 37 Detik",
       "status": "SELESAI",
       "lastHeartbeat": "2026-10-21T08:56:41.399Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     }
   ],
   "auditLogs": [
@@ -1528,7 +1540,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13"
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792573011872-72o1",
@@ -1537,7 +1550,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:56:51. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792573006717-58ho",
@@ -1545,7 +1558,8 @@
       "user": "Administrator Management",
       "role": "Super Admin",
       "action": "Reset Sesi Kerja",
-      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan."
+      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan.",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792571294953-164j",
@@ -1553,7 +1567,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14"
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570919419-scwf",
@@ -1562,7 +1577,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:21:59. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570235661-8abi",
@@ -1570,7 +1585,8 @@
       "user": "Administrator Management",
       "role": "Super Admin",
       "action": "Ubah Akun",
-      "details": "Memperbarui akun: admin (Administrator Operasional) - Admin"
+      "details": "Memperbarui akun: admin (Administrator Operasional) - Admin",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570223622-v260",
@@ -1578,7 +1594,8 @@
       "user": "Ahmad Faisal (Super Admin)",
       "role": "Super Admin",
       "action": "Ubah Akun",
-      "details": "Memperbarui akun: superadmin (Administrator Management) - Super Admin"
+      "details": "Memperbarui akun: superadmin (Administrator Management) - Super Admin",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570183467-4059",
@@ -1586,7 +1603,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) masuk bertugas pada 2026-10-21 15:09:43"
+      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) masuk bertugas pada 2026-10-21 15:09:43",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792568859457-718r",
@@ -1595,7 +1613,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) checkout tugas pada 2026-10-21 14:47:39. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792567398698-a6vh",
@@ -1603,7 +1621,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) melanjutkan sesi kerja aktif (SESI-6487-IN)"
+      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) melanjutkan sesi kerja aktif (SESI-6487-IN)",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792566872591-zl9t",
@@ -1612,7 +1631,7 @@
       "role": "Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 14:14:32. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792557390437-twya",
@@ -1620,7 +1639,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30"
+      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792554521660-a5re",
@@ -1629,7 +1649,7 @@
       "role": "Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 10:48:41. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792553705798-3g1q",
@@ -1637,7 +1657,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05"
+      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792553705798-3g1q",
@@ -3774,7 +3795,7 @@
       "description": "Ruang koordinasi strategis pimpinan dan seluruh divisi operasional Asrama Haji.",
       "icon": "fa-users-gear",
       "lastMessage": "Sistem komunikasi operasional aktif. Gunakan saluran ini untuk koordinasi lintas unit.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -3787,7 +3808,7 @@
       "description": "Koordinasi penempatan jemaah, check-in, check-out, dan status kamar.",
       "icon": "fa-bell-concierge",
       "lastMessage": "Saluran koordinasi reservasi dan registrasi jemaah siap digunakan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -3800,7 +3821,7 @@
       "description": "Saluran penugasan perbaikan fasilitas, genset, AC, plumbing, dan verifikasi kelayakan kamar.",
       "icon": "fa-screwdriver-wrench",
       "lastMessage": "Saluran pemeliharaan sarana prasarana dan inspeksi QC aktif.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -3813,7 +3834,7 @@
       "description": "Koordinasi pemesanan konsumsi, menu sarapan, dan pengantaran ke kamar tamu.",
       "icon": "fa-utensils",
       "lastMessage": "Saluran katering dan koperasi siap memproses pesanan sarapan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -3826,7 +3847,7 @@
       "description": "Koordinasi tagihan sewa, pelunasan DP, kwitansi resmi, dan rekonsiliasi keuangan asrama.",
       "icon": "fa-file-invoice-dollar",
       "lastMessage": "Saluran koordinasi keuangan dan verifikasi pembayaran siap digunakan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     }
   ],
@@ -4728,16 +4749,15 @@
       "userId": "u-superadmin",
       "userName": "Administrator Management",
       "userRole": "Super Admin",
+      "department": "Pimpinan & IT UPT",
+      "assignedBuilding": "Semua Gedung",
       "loginTime": "2026-10-21 16:27:13",
       "logoutTime": null,
       "durationSeconds": 5,
       "durationFormatted": "0 Jam 0 Menit 5 Detik (Sedang Berjalan)",
       "status": "AKTIF",
-      "department": "Pimpinan & IT UPT",
-      "assignedBuilding": "Semua Gedung",
       "lastHeartbeat": "2026-10-21T09:27:18.954Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     },
     {
       "id": "SESI-4908-IN",
@@ -4752,8 +4772,7 @@
       "durationFormatted": "0 Jam 28 Menit 37 Detik",
       "status": "SELESAI",
       "lastHeartbeat": "2026-10-21T08:56:41.399Z",
-      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)",
-      "closeOtherUserSessions": false
+      "notes": "Sesi login petugas (Super Admin - Pimpinan & IT UPT)"
     }
   ],
   "system_logs": [
@@ -4763,7 +4782,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13"
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 16:27:13",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792573011872-72o1",
@@ -4772,7 +4792,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:56:51. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792573006717-58ho",
@@ -4780,7 +4800,8 @@
       "user": "Administrator Management",
       "role": "Super Admin",
       "action": "Reset Sesi Kerja",
-      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan."
+      "details": "Daftar rekap riwayat sesi & jam kerja petugas telah dibersihkan.",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792571294953-164j",
@@ -4788,7 +4809,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14"
+      "details": "Petugas Administrator Management (Super Admin) masuk bertugas pada 2026-10-21 15:28:14",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570919419-scwf",
@@ -4797,7 +4819,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Management (Super Admin) checkout tugas pada 2026-10-21 15:21:59. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570235661-8abi",
@@ -4805,7 +4827,8 @@
       "user": "Administrator Management",
       "role": "Super Admin",
       "action": "Ubah Akun",
-      "details": "Memperbarui akun: admin (Administrator Operasional) - Admin"
+      "details": "Memperbarui akun: admin (Administrator Operasional) - Admin",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570223622-v260",
@@ -4813,7 +4836,8 @@
       "user": "Ahmad Faisal (Super Admin)",
       "role": "Super Admin",
       "action": "Ubah Akun",
-      "details": "Memperbarui akun: superadmin (Administrator Management) - Super Admin"
+      "details": "Memperbarui akun: superadmin (Administrator Management) - Super Admin",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792570183467-4059",
@@ -4821,7 +4845,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) masuk bertugas pada 2026-10-21 15:09:43"
+      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) masuk bertugas pada 2026-10-21 15:09:43",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792568859457-718r",
@@ -4830,7 +4855,7 @@
       "role": "Super Admin",
       "action": "Logout System",
       "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) checkout tugas pada 2026-10-21 14:47:39. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792567398698-a6vh",
@@ -4838,7 +4863,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) melanjutkan sesi kerja aktif (SESI-6487-IN)"
+      "details": "Petugas Ahmad Faisal (Super Admin) (Super Admin) melanjutkan sesi kerja aktif (SESI-6487-IN)",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792566872591-zl9t",
@@ -4847,7 +4873,7 @@
       "role": "Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 14:14:32. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792557390437-twya",
@@ -4855,7 +4881,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30"
+      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 11:36:30",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792554521660-a5re",
@@ -4864,7 +4891,7 @@
       "role": "Admin",
       "action": "Logout System",
       "details": "Petugas Administrator Operasional (Admin) (Admin) checkout tugas pada 2026-10-21 10:48:41. Durasi kerja: 0 Jam 0 Menit 0 Detik.",
-      "durationMinutes": 0
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792553705798-3g1q",
@@ -4872,7 +4899,8 @@
       "user": "System",
       "role": "System",
       "action": "Login System",
-      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05"
+      "details": "Petugas Administrator Operasional (Admin) (Admin) masuk bertugas pada 2026-10-21 10:35:05",
+      "hasQrAndSignature": false
     },
     {
       "id": "audit-1792553705798-3g1q",
@@ -7009,7 +7037,7 @@
       "description": "Ruang koordinasi strategis pimpinan dan seluruh divisi operasional Asrama Haji.",
       "icon": "fa-users-gear",
       "lastMessage": "Sistem komunikasi operasional aktif. Gunakan saluran ini untuk koordinasi lintas unit.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -7022,7 +7050,7 @@
       "description": "Koordinasi penempatan jemaah, check-in, check-out, dan status kamar.",
       "icon": "fa-bell-concierge",
       "lastMessage": "Saluran koordinasi reservasi dan registrasi jemaah siap digunakan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -7035,7 +7063,7 @@
       "description": "Saluran penugasan perbaikan fasilitas, genset, AC, plumbing, dan verifikasi kelayakan kamar.",
       "icon": "fa-screwdriver-wrench",
       "lastMessage": "Saluran pemeliharaan sarana prasarana dan inspeksi QC aktif.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -7048,7 +7076,7 @@
       "description": "Koordinasi pemesanan konsumsi, menu sarapan, dan pengantaran ke kamar tamu.",
       "icon": "fa-utensils",
       "lastMessage": "Saluran katering dan koperasi siap memproses pesanan sarapan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     },
     {
@@ -7061,7 +7089,7 @@
       "description": "Koordinasi tagihan sewa, pelunasan DP, kwitansi resmi, dan rekonsiliasi keuangan asrama.",
       "icon": "fa-file-invoice-dollar",
       "lastMessage": "Saluran koordinasi keuangan dan verifikasi pembayaran siap digunakan.",
-      "lastMessageTime": "1899-12-30T00:52:48.000Z",
+      "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
     }
   ],

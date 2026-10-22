@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "sim-asrama-haji-jakarta",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -29,6 +29,7 @@
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
+    "tsx": "^4.21.0",
     "vite": "^8.3.0"
   },
   "devDependencies": {
@@ -40,7 +41,6 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
     "typescript": "^7.0.2"
   }
 }

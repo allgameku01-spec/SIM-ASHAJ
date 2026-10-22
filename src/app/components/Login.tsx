@@ -5,6 +5,7 @@ import { UserRole } from '../types';
 import { useBodyScrollLock } from '../lib/scrollLock';
 import { compareBuildingOrder } from '../lib/utils';
 import { dataStorage } from '../services/dataStorage';
+import { fetchUserByUsernameFromSupabase } from '../lib/supabase';
 
 export function Login() {
   const { login, users, buildings = [], showToast, appSettings, registerAccountRequest, requestPasswordReset, pullFromCentralDatabase } = useAppContext();
@@ -104,29 +105,44 @@ export function Login() {
     const startMs = Date.now();
 
     try {
-      // 1. Tarik & sinkronkan data termutakhir dari basis data Spreadsheet agar data di setiap akun yang login identik
+      // 1. Cek kredensial user langsung di Supabase (Sangat hemat egress < 1KB & instan < 100ms)
+      let foundUser: any = undefined;
+      try {
+        const supaUser = await Promise.race([
+          fetchUserByUsernameFromSupabase(cleanUser),
+          new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+        ]);
+        if (supaUser) {
+          foundUser = supaUser;
+          dataStorage.saveUser(supaUser, { skipCloudSync: true });
+        }
+      } catch (_) {}
+
+      // 2. Tarik & sinkronkan data termutakhir dari basis data Supabase (Primary Database)
       try {
         await Promise.race([
           pullFromCentralDatabase(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2800))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
         ]);
       } catch (_) {
         // Fallback cepat jika timeout: tetap lanjutkan dengan data lokal tersimpan
       }
 
-      // Berikan jeda halus minimal 400ms agar animasi titik berjalan terlihat jelas
+      // Berikan jeda halus minimal 300ms agar animasi titik berjalan terlihat jelas
       const elapsed = Date.now() - startMs;
-      if (elapsed < 400) {
-        await new Promise(r => setTimeout(r, 400 - elapsed));
+      if (elapsed < 300) {
+        await new Promise(r => setTimeout(r, 300 - elapsed));
       }
 
-      // 2. Ambil daftar users terbaru setelah penarikan database
-      const currentUsers = dataStorage.getUsers();
-      const userList = currentUsers && currentUsers.length > 0 ? currentUsers : users;
-      const foundUser = userList.find(u => u.username.toLowerCase() === cleanUser);
+      // 3. Ambil daftar users terbaru setelah penarikan database jika belum didapat dari query spesifik
+      if (!foundUser) {
+        const currentUsers = dataStorage.getUsers();
+        const userList = currentUsers && currentUsers.length > 0 ? currentUsers : users;
+        foundUser = userList.find(u => u.username.toLowerCase() === cleanUser);
+      }
       
       if (!foundUser) {
-        showToast("Username / NIP tidak terdaftar di pangkalan data!", "error");
+        showToast("Username / NIP tidak terdaftar di basis data Supabase!", "error");
         setIsLoggingIn(false);
         return;
       }
