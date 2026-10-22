@@ -48,8 +48,8 @@ const rawEnvKey =
   '';
 
 // Default fallback mengarah ke proyek Supabase yang telah dikonfigurasi aktif
-const defaultFallbackUrl = 'https://iiopgzyxzvmnmkgnrzvc.supabase.co';
-const defaultFallbackKey = 'sb_publishable_rpX2kofk6225g4vs6lB1gQ_6_F4bz80';
+const defaultFallbackUrl = 'https://okadqywvaqcgeasjfpno.supabase.co';
+const defaultFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rYWRxeXd2YXFjZ2Vhc2pmcG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDU5OTYsImV4cCI6MjEwODE4MTk5Nn0.FbymmkTASjrAG0yD9oVwbhQPNc4BnFjURYHUb_HnAso';
 
 export let SUPABASE_URL = sanitizeSupabaseUrl(windowConfig?.url || rawEnvUrl || defaultFallbackUrl);
 export let SUPABASE_ANON_KEY = (windowConfig?.anonKey || rawEnvKey || defaultFallbackKey || '').trim();

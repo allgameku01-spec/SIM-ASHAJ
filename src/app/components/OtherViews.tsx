@@ -11,6 +11,7 @@ import { VerifyPdfView } from './VerifyPdfView';
 import { RolePermissionsSection } from './RolePermissionsSection';
 import { SpreadsheetIntegrationView } from './SpreadsheetIntegrationView';
 import { getDirectChannelId } from '../chatData';
+import { batchSyncToSpreadsheet } from '../services/spreadsheetStorage';
 
 export function ReportsView() {
   const { currentUser, transactions, rooms, openModal, showToast, roomCapacityRates = [], meetingRooms = [], breakfastMenuItems = [], deleteTransaction, batchDeleteGroup } = useAppContext();
@@ -4669,19 +4670,22 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
             <>
               <button
                 onClick={() => setActiveSubView('DATABASE_MGMT')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 shrink-0 ${
                   activeSubView === 'DATABASE_MGMT' 
                     ? 'bg-white text-emerald-800 shadow-xs font-black' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
                 <i className="fa-solid fa-database text-emerald-600"></i>
-                <span>Basis Data</span>
+                <span>Basis Data Supabase</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Utama
+                </span>
               </button>
 
               <button
                 onClick={() => setActiveSubView('SPREADSHEET_MGMT')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 shrink-0 ${
                   activeSubView === 'SPREADSHEET_MGMT' 
                     ? 'bg-white text-emerald-800 shadow-xs font-black' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -4689,6 +4693,9 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
               >
                 <i className="fa-solid fa-file-excel text-emerald-600"></i>
                 <span>Google Spreadsheet</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                  Mirror &amp; Backup
+                </span>
               </button>
             </>
           )}
@@ -6142,12 +6149,12 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
           )}
         </div>
       ) : activeSubView === 'DATABASE_MGMT' ? (
-        /* Pusat Manajemen Basis Data (Google Spreadsheet) */
+        /* Pusat Manajemen Basis Data (Supabase PostgreSQL Cloud) */
         <div className="space-y-5 animate-in fade-in duration-200">
           {/* Unified Central Database Banner & Real-Time Sync Control */}
           <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-500/30 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <i className="fa-solid fa-cloud-bolt text-9xl text-emerald-400"></i>
+              <i className="fa-solid fa-database text-9xl text-emerald-400"></i>
             </div>
             
             <div className="relative z-10 space-y-4">
@@ -6156,7 +6163,7 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="inline-flex items-center space-x-2 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold">
                       <i className="fa-solid fa-database"></i>
-                      <span>Basis Data Utama (Google Spreadsheet)</span>
+                      <span>Basis Data Utama: Supabase PostgreSQL Cloud</span>
                     </div>
 
                     <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
@@ -6178,16 +6185,16 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
                           ? 'Status Sync: Menyinkronkan...'
                           : supabaseSyncState?.lastError
                           ? `Status Sync: ${supabaseSyncState.lastError}`
-                          : 'Status Sync: Terhubung & Sinkron dengan Google Spreadsheet'}
+                          : 'Status: Terhubung & Sinkron dengan Supabase (okadqywvaqcgeasjfpno.supabase.co)'}
                       </span>
                     </div>
                   </div>
 
                   <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                    Basis Data Terpusat SIM-Akomodasi UPT Asrama Haji Jakarta
+                    Basis Data Utama Supabase Cloud SIM Asrama Haji Jakarta
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Sistem terhubung langsung ke <strong>Basis Data Utama Google Spreadsheet</strong>. Saat aplikasi dibuka dan masuk (login), data terbaru langsung ditarik dari spreadsheet pusat, dan setiap perubahan transaksi, master gedung, dan kamar disinkronkan secara aman.
+                    Sistem menggunakan <strong>Supabase PostgreSQL Cloud</strong> sebagai basis data transaksional utama yang cepat, aman, dan hemat egress (selective column fetch &amp; pagination). Seluruh CRUD Gedung, Kamar, Reservasi Tamu, QC, Maintenance, dan Akun Petugas tersimpan langsung di tabel-tabel PostgreSQL Supabase. Google Spreadsheet difungsikan sebagai mirror dan backup cadangan berkala.
                   </p>
                 </div>
 
@@ -6199,12 +6206,13 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
                       setIsCloudSyncing(true);
                       await manualSyncSupabase();
                       setIsCloudSyncing(false);
+                      showToast('Berhasil menarik data operasional terbaru dari Supabase!', 'success');
                     }}
                     disabled={isCloudSyncing || supabaseSyncState?.isSyncing}
                     className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow-sm cursor-pointer disabled:opacity-50"
                   >
                     <i className={`fa-solid ${isCloudSyncing || supabaseSyncState?.isSyncing ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}`}></i>
-                    <span>Tarik Data Terbaru dari Spreadsheet</span>
+                    <span>Tarik Data Terbaru dari Supabase</span>
                   </button>
 
                   <button
@@ -6213,37 +6221,80 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
                       setIsCloudSyncing(true);
                       await pushAllToSupabase();
                       setIsCloudSyncing(false);
+                      showToast('Berhasil menyinkronkan seluruh data lokal ke tabel Supabase!', 'success');
                     }}
                     disabled={isCloudSyncing || supabaseSyncState?.isSyncing}
                     className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow-sm cursor-pointer disabled:opacity-50"
                   >
                     <i className="fa-solid fa-cloud-arrow-up text-emerald-300"></i>
-                    <span>Kirim Pembaruan ke Spreadsheet</span>
+                    <span>Kirim &amp; Sinkronkan ke Supabase</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsCloudSyncing(true);
+                      showToast('Sedang mengirim snapshot batch mirror ke Google Spreadsheet...', 'info');
+                      const fullDb = {
+                        buildings,
+                        rooms,
+                        meetingRooms,
+                        transactions,
+                        maintenances,
+                        qcInspections,
+                        workSessions: safeWorkSessions,
+                        auditLogs,
+                        breakfastMenuItems,
+                        breakfastOrders,
+                        roomCapacityRates,
+                        users,
+                        appSettings
+                      };
+                      const res = await batchSyncToSpreadsheet(fullDb);
+                      setIsCloudSyncing(false);
+                      if (res.success) {
+                        showToast('Berhasil membuat snapshot cadangan mirror di Google Spreadsheet!', 'success');
+                      } else {
+                        showToast(`Catatan mirror spreadsheet: ${res.message || 'Periksa URL WebApp Spreadsheet di Tab Spreadsheet'}`, 'warning');
+                      }
+                    }}
+                    disabled={isCloudSyncing || supabaseSyncState?.isSyncing}
+                    className="px-3.5 py-2.5 bg-teal-600/80 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    title="Kirim snapshot cadangan mirror ke Google Spreadsheet"
+                  >
+                    <i className="fa-solid fa-file-excel text-emerald-200"></i>
+                    <span>Kirim Mirror ke Spreadsheet</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setActiveSubView('SPREADSHEET_MGMT')}
-                    className="px-3.5 py-2.5 bg-emerald-500/30 hover:bg-emerald-500/40 text-emerald-100 border border-emerald-400/50 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                    title="Buka panduan & integrasi Google Spreadsheet"
+                    className="px-3.5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 border border-emerald-400/40 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                    title="Buka konfigurasi & panduan Google Spreadsheet"
                   >
-                    <i className="fa-solid fa-file-excel text-emerald-300"></i>
-                    <span>Kelola Lembar Kerja &amp; Integrasi Spreadsheet</span>
+                    <i className="fa-solid fa-table-columns text-emerald-300"></i>
+                    <span>Konfigurasi Spreadsheet</span>
                   </button>
                 </div>
               </div>
 
               {/* Connection Metadata Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3 border-t border-white/10 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-3 border-t border-white/10 text-xs">
                 <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/10 flex items-center justify-between">
                   <span className="text-slate-400 text-[11px]">Database Utama:</span>
-                  <span className="font-mono text-emerald-300 font-bold text-[11px] truncate max-w-[200px]">
-                    Google Spreadsheet (Apps Script)
+                  <span className="font-mono text-emerald-300 font-bold text-[11px] truncate max-w-[170px]">
+                    Supabase PostgreSQL
                   </span>
                 </div>
                 <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/10 flex items-center justify-between">
-                  <span className="text-slate-400 text-[11px]">Mode Penyimpanan:</span>
-                  <span className="font-bold text-white text-[11px]">Spreadsheet + Real-Time Engine</span>
+                  <span className="text-slate-400 text-[11px]">Host Proyek:</span>
+                  <span className="font-mono text-white font-bold text-[11px] truncate max-w-[170px]" title="okadqywvaqcgeasjfpno.supabase.co">
+                    okadqywvaqcgeasjfpno
+                  </span>
+                </div>
+                <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/10 flex items-center justify-between">
+                  <span className="text-slate-400 text-[11px]">Mode Arsitektur:</span>
+                  <span className="font-bold text-emerald-300 text-[11px]">Low-Egress + Dual-Mirror</span>
                 </div>
                 <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/10 flex items-center justify-between">
                   <span className="text-slate-400 text-[11px]">Sinkronisasi Terakhir:</span>

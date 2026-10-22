@@ -12,8 +12,8 @@ const rawEnvKey =
   '';
 
 // Default project fallback
-const defaultFallbackUrl = 'https://okadqywvaqcgeasjfpno.supabase.co/rest/v1/';
-const defaultFallbackKey = 'sb_publishable_ACSn1XC_DbNU5Kf3Q03t4A_P4TMEKBF';
+const defaultFallbackUrl = 'https://okadqywvaqcgeasjfpno.supabase.co';
+const defaultFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rYWRxeXd2YXFjZ2Vhc2pmcG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDU5OTYsImV4cCI6MjEwODE4MTk5Nn0.FbymmkTASjrAG0yD9oVwbhQPNc4BnFjURYHUb_HnAso';
 
 export function sanitizeSupabaseUrl(url?: string): string {
   if (!url) return '';
