@@ -2460,6 +2460,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setUsers(prev => prev.map(u => u.id === safeUpdatedUser.id ? safeUpdatedUser : u));
     dataStorage.saveUser(safeUpdatedUser);
+
+    // Jika nama lengkap petugas berubah, perbarui secara otomatis nama pengirim pada rekap sesi kerja (workSessions) dan riwayat chat (chatMessages)
+    if (existingTarget && existingTarget.fullName !== safeUpdatedUser.fullName) {
+      const oldName = existingTarget.fullName;
+      const newName = safeUpdatedUser.fullName;
+      const targetUserId = safeUpdatedUser.id;
+
+      // 1. Update workSessions
+      setWorkSessions(prev => {
+        const updated = prev.map(s => {
+          if (s.userId === targetUserId || s.userName === oldName) {
+            const patched = { ...s, userName: newName };
+            dataStorage.saveWorkSession(patched);
+            upsertWorkSessionInSupabaseDirect(patched).catch(() => {});
+            return patched;
+          }
+          return s;
+        });
+        return updated;
+      });
+
+      // 2. Update chatMessages
+      setChatMessages(prev => {
+        const updated = prev.map(m => {
+          if (m.senderId === targetUserId || m.senderName === oldName) {
+            const patched = { ...m, senderName: newName };
+            updateChatMessageInSupabaseDirect(patched).catch(() => {});
+            return patched;
+          }
+          return m;
+        });
+        return updated;
+      });
+    }
+
     if (currentUser && currentUser.id === safeUpdatedUser.id) {
       setCurrentUser(safeUpdatedUser);
       try {
