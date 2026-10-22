@@ -1474,6 +1474,38 @@
   "qcInspections": [],
   "workSessions": [
     {
+      "id": "SESI-8977--4",
+      "userId": "usr-4",
+      "userName": "Bang Emon",
+      "userRole": "Manager Resepsionis",
+      "loginTime": "2026-10-22 14:34:28",
+      "logoutTime": null,
+      "durationSeconds": 841,
+      "durationFormatted": "0 Jam 14 Menit 1 Detik (Sedang Berjalan)",
+      "status": "AKTIF",
+      "department": "Pelayanan & Resepsionis",
+      "assignedBuilding": "Semua Gedung",
+      "lastHeartbeat": "2026-10-22T07:48:29.957Z",
+      "notes": "Sesi login petugas (Manager Resepsionis - Pelayanan & Resepsionis)",
+      "closeOtherUserSessions": false
+    },
+    {
+      "assignedBuilding": "Semua Gedung",
+      "closeOtherUserSessions": false,
+      "department": "Pimpinan / Tata Usaha",
+      "durationFormatted": "0 Jam 16 Menit 49 Detik (Sedang Berjalan)",
+      "durationSeconds": 1009,
+      "id": "SESI-9019--3",
+      "lastHeartbeat": "2026-10-22T07:50:18.473Z",
+      "loginTime": "2026-10-22 14:33:29",
+      "logoutTime": null,
+      "notes": "Sesi login petugas (Admin - Pimpinan / Tata Usaha)",
+      "status": "AKTIF",
+      "userId": "usr-3",
+      "userName": "Zainul Syaifudin",
+      "userRole": "Admin"
+    },
+    {
       "id": "SESI-2572--3",
       "notes": "Sesi login petugas (Admin - Pimpinan / Tata Usaha)",
       "status": "SELESAI",
@@ -1675,6 +1707,21 @@
       "lastMessage": "Saluran koordinasi keuangan dan verifikasi pembayaran siap digunakan.",
       "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
+    },
+    {
+      "description": "Komunikasi Pribadi 2 Arah: Bang Emon (Manager Resepsionis) ↔ Zainul Syaifudin (Admin)",
+      "icon": "fa-user-shield",
+      "id": "dm___usr-3___usr-4",
+      "lastMessage": "apa?",
+      "lastMessageTime": "14.44 WIB",
+      "lastSenderName": "Bang Emon",
+      "name": "Bang Emon & Zainul Syaifudin",
+      "participantIds": [
+        "usr-4",
+        "usr-3"
+      ],
+      "scope": "DIRECT",
+      "type": "DIRECT"
     }
   ],
   "chatMessages": [
@@ -1708,6 +1755,38 @@
         "u-superadmin"
       ],
       "createdAt": "2026-10-22T06:35:29.135Z"
+    },
+    {
+      "channelId": "dm___usr-3___usr-4",
+      "id": "msg-1792654816216-9x7t",
+      "isInstruction": false,
+      "message": "pp",
+      "priority": "NORMAL",
+      "readBy": [
+        "usr-3"
+      ],
+      "senderDepartment": "Pimpinan / Tata Usaha",
+      "senderId": "usr-3",
+      "senderName": "Zainul Syaifudin",
+      "senderRole": "Admin",
+      "timeFormatted": "14.40 WIB",
+      "timestamp": "2026-10-22T07:40:16.215Z"
+    },
+    {
+      "channelId": "dm___usr-3___usr-4",
+      "id": "msg-1792655043702-5pzy",
+      "isInstruction": false,
+      "message": "apa?",
+      "priority": "NORMAL",
+      "readBy": [
+        "usr-4"
+      ],
+      "senderDepartment": "Pelayanan & Resepsionis",
+      "senderId": "usr-4",
+      "senderName": "Bang Emon",
+      "senderRole": "Manager Resepsionis",
+      "timeFormatted": "14.44 WIB",
+      "timestamp": "2026-10-22T07:44:03.701Z"
     }
   ],
   "appSettings": {
@@ -2557,6 +2636,38 @@
   "qc_inspections": [],
   "work_sessions": [
     {
+      "id": "SESI-8977--4",
+      "userId": "usr-4",
+      "userName": "Bang Emon",
+      "userRole": "Manager Resepsionis",
+      "loginTime": "2026-10-22 14:34:28",
+      "logoutTime": null,
+      "durationSeconds": 841,
+      "durationFormatted": "0 Jam 14 Menit 1 Detik (Sedang Berjalan)",
+      "status": "AKTIF",
+      "department": "Pelayanan & Resepsionis",
+      "assignedBuilding": "Semua Gedung",
+      "lastHeartbeat": "2026-10-22T07:48:29.957Z",
+      "notes": "Sesi login petugas (Manager Resepsionis - Pelayanan & Resepsionis)",
+      "closeOtherUserSessions": false
+    },
+    {
+      "assignedBuilding": "Semua Gedung",
+      "closeOtherUserSessions": false,
+      "department": "Pimpinan / Tata Usaha",
+      "durationFormatted": "0 Jam 16 Menit 49 Detik (Sedang Berjalan)",
+      "durationSeconds": 1009,
+      "id": "SESI-9019--3",
+      "lastHeartbeat": "2026-10-22T07:50:18.473Z",
+      "loginTime": "2026-10-22 14:33:29",
+      "logoutTime": null,
+      "notes": "Sesi login petugas (Admin - Pimpinan / Tata Usaha)",
+      "status": "AKTIF",
+      "userId": "usr-3",
+      "userName": "Zainul Syaifudin",
+      "userRole": "Admin"
+    },
+    {
       "id": "SESI-2572--3",
       "notes": "Sesi login petugas (Admin - Pimpinan / Tata Usaha)",
       "status": "SELESAI",
@@ -2703,9 +2814,9 @@
       "participantIds": [],
       "description": "Ruang koordinasi strategis pimpinan dan seluruh divisi operasional Asrama Haji.",
       "icon": "fa-users-gear",
-      "lastMessage": "Sistem komunikasi operasional aktif. Gunakan saluran ini untuk koordinasi lintas unit.",
-      "lastMessageTime": "08:00",
-      "lastSenderName": "Sistem UPT"
+      "lastMessage": "Tes koordinasi sistem",
+      "lastMessageTime": "13.35 WIB",
+      "lastSenderName": "Super Admin"
     },
     {
       "id": "channel-operasional",
@@ -2758,6 +2869,21 @@
       "lastMessage": "Saluran koordinasi keuangan dan verifikasi pembayaran siap digunakan.",
       "lastMessageTime": "08:00",
       "lastSenderName": "Sistem UPT"
+    },
+    {
+      "description": "Komunikasi Pribadi 2 Arah: Bang Emon (Manager Resepsionis) ↔ Zainul Syaifudin (Admin)",
+      "icon": "fa-user-shield",
+      "id": "dm___usr-3___usr-4",
+      "lastMessage": "apa?",
+      "lastMessageTime": "14.44 WIB",
+      "lastSenderName": "Bang Emon",
+      "name": "Bang Emon & Zainul Syaifudin",
+      "participantIds": [
+        "usr-4",
+        "usr-3"
+      ],
+      "scope": "DIRECT",
+      "type": "DIRECT"
     }
   ],
   "chat_messages": [
@@ -2776,6 +2902,53 @@
       "isInstruction": false,
       "timeFormatted": "12.21",
       "senderDepartment": "Pimpinan / Tata Usaha"
+    },
+    {
+      "channelId": "channel-all-managers",
+      "message": "Tes koordinasi sistem",
+      "senderId": "u-superadmin",
+      "senderName": "Super Admin",
+      "senderRole": "Super Admin",
+      "id": "msg-1792650929135-kq42",
+      "timestamp": "2026-10-22T06:35:29.135Z",
+      "timeFormatted": "13.35 WIB",
+      "priority": "NORMAL",
+      "readBy": [
+        "u-superadmin"
+      ],
+      "createdAt": "2026-10-22T06:35:29.135Z"
+    },
+    {
+      "channelId": "dm___usr-3___usr-4",
+      "id": "msg-1792654816216-9x7t",
+      "isInstruction": false,
+      "message": "pp",
+      "priority": "NORMAL",
+      "readBy": [
+        "usr-3"
+      ],
+      "senderDepartment": "Pimpinan / Tata Usaha",
+      "senderId": "usr-3",
+      "senderName": "Zainul Syaifudin",
+      "senderRole": "Admin",
+      "timeFormatted": "14.40 WIB",
+      "timestamp": "2026-10-22T07:40:16.215Z"
+    },
+    {
+      "channelId": "dm___usr-3___usr-4",
+      "id": "msg-1792655043702-5pzy",
+      "isInstruction": false,
+      "message": "apa?",
+      "priority": "NORMAL",
+      "readBy": [
+        "usr-4"
+      ],
+      "senderDepartment": "Pelayanan & Resepsionis",
+      "senderId": "usr-4",
+      "senderName": "Bang Emon",
+      "senderRole": "Manager Resepsionis",
+      "timeFormatted": "14.44 WIB",
+      "timestamp": "2026-10-22T07:44:03.701Z"
     }
   ],
   "app_settings": {
