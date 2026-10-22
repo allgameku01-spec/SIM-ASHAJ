@@ -4207,7 +4207,9 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
 
     sorted.forEach(s => {
       const loginDate = (s.loginTime || '').split(' ')[0] || '';
-      const key = `${s.userName || ''}___${loginDate}`;
+      // Gunakan ID user atau nama untuk memastikan akun yang diganti namanya (misal Bang Emon -> Chandra) tidak double tercatat sebagai 2 orang berbeda
+      const userKey = s.userId || (s.userName || '').trim().toLowerCase();
+      const key = `${userKey}___${loginDate}`;
       const existing = map.get(key);
 
       if (!existing) {
@@ -4228,6 +4230,10 @@ export function AuditLogView({ defaultSubView }: { defaultSubView?: 'WORK_SESSIO
           notesList: s.notes ? [s.notes] : []
         });
       } else {
+        // Jika nama petugas di sesi berbeda namun userId sama (atau nama sama), perbarui ke nama terbaru
+        if (s.userName && existing.userName !== s.userName && s.status === 'AKTIF') {
+          existing.userName = s.userName;
+        }
         existing.sessionCount += 1;
         existing.totalDurationSeconds += s.durationSeconds;
         existing.sessions.push(s);
