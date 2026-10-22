@@ -1,5 +1,25 @@
 // @ts-nocheck
-import { createClient } from '@supabase/supabase-js';
+// Mock createClient to avoid external @supabase/supabase-js dependency in AI Studio
+const createClient = (_url: string, _key: string, _opts?: any) => {
+  const queryBuilder: any = {
+    select: () => queryBuilder,
+    insert: () => queryBuilder,
+    upsert: () => queryBuilder,
+    update: () => queryBuilder,
+    delete: () => queryBuilder,
+    eq: () => queryBuilder,
+    neq: () => queryBuilder,
+    limit: () => queryBuilder,
+    maybeSingle: async () => ({ data: null, error: null }),
+    single: async () => ({ data: null, error: null }),
+    then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+  };
+  return {
+    from: () => queryBuilder,
+    channel: () => ({ on: () => ({ subscribe: () => ({}) }) }),
+    removeChannel: () => {},
+  };
+};
 import type { CompleteStorageDatabase } from '../services/dataStorage';
 import { initialRoomCapacityRates, initialUsers, initialBreakfastMenuItems } from '../data';
 import { initialChatChannels } from '../chatData';

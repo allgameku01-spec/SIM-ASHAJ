@@ -650,8 +650,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
-    console.log(`[SIM Asrama Haji Jakarta] Server aktif di port ${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`[SIM Asrama Haji Jakarta] Server aktif di http://0.0.0.0:${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
     console.log(`[Spreadsheet Database] ID: ${sheetConfig.sheetId}`);
     console.log(`[Spreadsheet Link] ${sheetConfig.sheetDocUrl}`);
   });
