@@ -2728,6 +2728,71 @@ export async function updateAppSettingsInSupabaseDirect(s: AppSettings): Promise
 }
 
 /**
+ * 7e. Fungsi UPDATE/INSERT langsung ke tabel chat_messages di Supabase
+ */
+export async function updateChatMessageInSupabaseDirect(m: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
+    const payload = {
+      id: m.id,
+      channel_id: m.channelId,
+      channel_type: m.channelId?.startsWith('dm___') ? 'DIRECT' : 'GROUP',
+      sender_id: m.senderId,
+      sender_name: m.senderName,
+      sender_role: m.senderRole,
+      sender_department: m.senderDepartment || null,
+      message: m.message,
+      timestamp: m.timestamp || new Date().toISOString(),
+      time_formatted: m.timeFormatted || '',
+      priority: m.priority || 'NORMAL',
+      is_instruction: Boolean(m.isInstruction),
+      read_by: m.readBy || [],
+      reply_to_id: m.replyToId || null,
+      reply_to_sender: m.replyToSender || null,
+      reply_to_text: m.replyToText || null,
+      created_at: m.timestamp || new Date().toISOString()
+    };
+    const { error } = await supabase.from('chat_messages').upsert(payload, { onConflict: 'id' });
+    if (error && error.code !== '42P01') {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * 7f. Fungsi UPDATE/INSERT langsung ke tabel chat_channels di Supabase
+ */
+export async function updateChatChannelInSupabaseDirect(c: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
+    const payload = {
+      id: c.id,
+      name: c.name,
+      type: c.type || 'GROUP',
+      scope: c.scope || 'ALL_MANAGERS_GROUP',
+      department: c.department || null,
+      participant_ids: c.participantIds || [],
+      description: c.description || null,
+      icon: c.icon || 'fa-comments',
+      last_message: c.lastMessage || null,
+      last_message_time: c.lastMessageTime || null,
+      last_sender_name: c.lastSenderName || null,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('chat_channels').upsert(payload, { onConflict: 'id' });
+    if (error && error.code !== '42P01') {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
  * 8. Fungsi DELETE langsung ke tabel rooms di Supabase
  */
 export async function deleteRoomInSupabaseDirect(roomId: string): Promise<{ success: boolean; error?: string }> {

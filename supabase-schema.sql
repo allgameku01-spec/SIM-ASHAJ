@@ -334,6 +334,47 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs(timesta
 CREATE INDEX IF NOT EXISTS idx_users_nip ON public.users(nip);
 CREATE INDEX IF NOT EXISTS idx_users_username ON public.users(username);
 
+-- 15. TABEL SALURAN & GRUP CHAT (chat_channels)
+CREATE TABLE IF NOT EXISTS public.chat_channels (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'GROUP',
+    scope TEXT NOT NULL DEFAULT 'ALL_MANAGERS_GROUP',
+    department TEXT,
+    participant_ids JSONB DEFAULT '[]'::jsonb,
+    description TEXT,
+    icon TEXT DEFAULT 'fa-comments',
+    last_message TEXT,
+    last_message_time TEXT,
+    last_sender_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('Asia/Jakarta', NOW()),
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('Asia/Jakarta', NOW())
+);
+
+-- 16. TABEL RIWAYAT PESAN CHAT (chat_messages)
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL,
+    channel_type TEXT NOT NULL DEFAULT 'GROUP',
+    sender_id TEXT NOT NULL,
+    sender_name TEXT NOT NULL,
+    sender_role TEXT NOT NULL,
+    sender_department TEXT,
+    message TEXT NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('Asia/Jakarta', NOW()),
+    time_formatted TEXT NOT NULL,
+    priority TEXT DEFAULT 'NORMAL',
+    is_instruction BOOLEAN DEFAULT FALSE,
+    read_by JSONB DEFAULT '[]'::jsonb,
+    reply_to_id TEXT,
+    reply_to_sender TEXT,
+    reply_to_text TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('Asia/Jakarta', NOW())
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON public.chat_messages(channel_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON public.chat_messages(timestamp DESC);
+
 -- REALTIME FILTERED PUBLICATION (LOW-EGRESS)
 DO $$
 BEGIN
@@ -341,6 +382,8 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.transactions;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.maintenances;
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_channels;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.app_database_sync;
   END IF;
 EXCEPTION

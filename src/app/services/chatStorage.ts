@@ -3,6 +3,7 @@ import { ChatChannel, ChatMessage, ChatScope } from '../types';
 import { initialChatChannels } from '../chatData';
 import { dataStorage } from './dataStorage';
 import { pushChatMessageToSpreadsheet } from './spreadsheetStorage';
+import { updateChatMessageInSupabaseDirect, updateChatChannelInSupabaseDirect } from '../lib/supabase';
 
 /**
  * ============================================================================
@@ -303,12 +304,15 @@ export async function persistChatMessage(
   // 1. Simpan di dataStorage lokal (IndexedDB / LocalStorage)
   dataStorage.saveChatMessage(message, channel);
 
-  // 2. Kirim langsung ke basis data Google Spreadsheet secara real-time
+  // 2. Kirim langsung ke basis data Supabase (Primary Database)
+  updateChatMessageInSupabaseDirect(message).catch(() => {});
+
+  // 3. Kirim ke basis data Google Spreadsheet secara asinkron (Mirror)
   pushChatMessageToSpreadsheet(message, channel).catch(err => {
     console.warn('[ChatStorage] Gagal push chat ke Google Spreadsheet:', err);
   });
 
-  // 3. Kirim ke backend server proxy jika ada untuk broadcast SSE lokal
+  // 4. Kirim ke backend server proxy jika ada untuk broadcast SSE lokal
   try {
     const res = await fetch('/api/chat/messages', {
       method: 'POST',
@@ -333,6 +337,9 @@ export async function persistChatMessage(
  */
 export async function persistChatChannel(channel: ChatChannel): Promise<ChatChannel> {
   dataStorage.saveChatChannel(channel);
+
+  // Simpan ke Supabase jika ada
+  updateChatChannelInSupabaseDirect(channel).catch(() => {});
 
   try {
     fetch('/api/chat/channels', {
