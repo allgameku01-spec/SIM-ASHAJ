@@ -46,7 +46,26 @@ import {
 import { 
   fetchFullDatabaseFromSupabase, 
   pushAllToTargetSupabase, 
-  SUPABASE_ANON_KEY 
+  SUPABASE_ANON_KEY,
+  updateTransactionInSupabaseDirect,
+  deleteTransactionInSupabaseDirect,
+  updateRoomInSupabaseDirect,
+  deleteRoomInSupabaseDirect,
+  updateBuildingInSupabaseDirect,
+  deleteBuildingInSupabaseDirect,
+  updateMeetingRoomInSupabaseDirect,
+  deleteMeetingRoomInSupabaseDirect,
+  updateUserInSupabaseDirect,
+  deleteUserInSupabaseDirect,
+  updateMaintenanceInSupabaseDirect,
+  deleteMaintenanceInSupabaseDirect,
+  updateQcInspectionInSupabaseDirect,
+  deleteQcInspectionInSupabaseDirect,
+  updateBreakfastOrderInSupabaseDirect,
+  deleteBreakfastOrderInSupabaseDirect,
+  updateRoomCapacityRateInSupabaseDirect,
+  deleteRoomCapacityRateInSupabaseDirect,
+  updateAppSettingsInSupabaseDirect
 } from '../lib/supabase';
 import { 
   supabase, 
@@ -894,6 +913,9 @@ export class DataStorageService {
     }
 
     this.saveDatabase({ ...db, users: updatedUsers });
+    if (isSupabaseConfigured()) {
+      updateUserInSupabaseDirect(userWithTime).catch(err => console.warn('[Supabase] Gagal menyimpan user:', err));
+    }
     return userWithTime;
   }
 
@@ -907,6 +929,9 @@ export class DataStorageService {
     newUsers[idx] = updatedUser;
 
     this.saveDatabase({ ...db, users: newUsers });
+    if (isSupabaseConfigured()) {
+      updateUserInSupabaseDirect(updatedUser).catch(err => console.warn('[Supabase] Gagal update user:', err));
+    }
     return updatedUser;
   }
 
@@ -923,6 +948,9 @@ export class DataStorageService {
     newUsers[idx] = updatedUser;
 
     this.saveDatabase({ ...db, users: newUsers });
+    if (isSupabaseConfigured()) {
+      updateUserInSupabaseDirect(updatedUser).catch(err => console.warn('[Supabase] Gagal toggle user status:', err));
+    }
     return updatedUser;
   }
 
@@ -934,6 +962,9 @@ export class DataStorageService {
     if (newUsers.length === initialLen) return false;
 
     this.saveDatabase({ ...db, users: newUsers });
+    if (isSupabaseConfigured()) {
+      deleteUserInSupabaseDirect(userId).catch(err => console.warn('[Supabase] Gagal delete user:', err));
+    }
     return true;
   }
 
@@ -1397,6 +1428,9 @@ export class DataStorageService {
     const rooms = (db.rooms || []).filter(r => r.id !== mrWithId.id && r.roomNumber !== mrWithId.name);
 
     this.saveDatabase({ ...db, meetingRooms: updated, rooms });
+    if (isSupabaseConfigured()) {
+      updateMeetingRoomInSupabaseDirect(mrWithId).catch(err => console.warn('[Supabase] Gagal menyimpan ruang pertemuan:', err));
+    }
     return mrWithId;
   }
 
@@ -1430,6 +1464,9 @@ export class DataStorageService {
     });
 
     this.saveDatabase({ ...db, meetingRooms: updatedMR, rooms: updatedRooms, buildings });
+    if (isSupabaseConfigured()) {
+      deleteMeetingRoomInSupabaseDirect(meetingRoomId).catch(err => console.warn('[Supabase] Gagal menghapus ruang pertemuan:', err));
+    }
     return { success: true, message: `Ruang Pertemuan '${mr.name}' berhasil dihapus dari database.` };
   }
 
@@ -1558,6 +1595,9 @@ export class DataStorageService {
       qcInspections,
       meetingRooms
     });
+    if (isSupabaseConfigured()) {
+      updateRoomInSupabaseDirect(roomWithId).catch(err => console.warn('[Supabase] Gagal menyimpan kamar:', err));
+    }
     return roomWithId;
   }
 
@@ -1565,6 +1605,11 @@ export class DataStorageService {
     const db = this.getDatabase();
     const roomsWithTime = rooms.map(r => ({ ...r, updatedAt: r.updatedAt || new Date().toISOString() }));
     this.saveDatabase({ ...db, rooms: roomsWithTime }, options);
+    if (isSupabaseConfigured() && !options?.skipCloudSync) {
+      roomsWithTime.forEach(r => {
+        updateRoomInSupabaseDirect(r).catch(() => {});
+      });
+    }
     return roomsWithTime;
   }
 
@@ -1599,6 +1644,9 @@ export class DataStorageService {
     );
 
     this.saveDatabase({ ...db, rooms: updatedRooms, buildings, meetingRooms: updatedMeetingRooms });
+    if (isSupabaseConfigured()) {
+      deleteRoomInSupabaseDirect(roomId).catch(err => console.warn('[Supabase] Gagal menghapus kamar:', err));
+    }
     return { success: true, message: `Kamar ${room.roomNumber} (${room.building}) berhasil dihapus.` };
   }
 
@@ -1650,6 +1698,9 @@ export class DataStorageService {
     const updatedRates = [...remainingRates, rateWithId];
 
     this.saveDatabase({ ...db, roomCapacityRates: updatedRates });
+    if (isSupabaseConfigured()) {
+      updateRoomCapacityRateInSupabaseDirect(rateWithId).catch(err => console.warn('[Supabase] Gagal menyimpan tarif kamar:', err));
+    }
     return rateWithId;
   }
 
@@ -1663,6 +1714,9 @@ export class DataStorageService {
 
     const updatedRates = rates.filter(r => r.id !== rateId);
     this.saveDatabase({ ...db, roomCapacityRates: updatedRates });
+    if (isSupabaseConfigured()) {
+      deleteRoomCapacityRateInSupabaseDirect(rateId).catch(err => console.warn('[Supabase] Gagal menghapus tarif kamar:', err));
+    }
     return { success: true, message: `Konfigurasi '${item.roomType} - ${item.bedType}' berhasil dihapus dari database.` };
   }
 
@@ -1735,6 +1789,9 @@ export class DataStorageService {
     }
 
     this.saveDatabase({ ...db, transactions: updatedTxs });
+    if (isSupabaseConfigured()) {
+      updateTransactionInSupabaseDirect(txWithTime).catch(err => console.warn('[Supabase] Gagal menyimpan transaksi:', err));
+    }
     return txWithTime;
   }
 
@@ -1742,6 +1799,11 @@ export class DataStorageService {
     const db = this.getDatabase();
     const withTime = txs.map(t => ({ ...t, updatedAt: t.updatedAt || new Date().toISOString() }));
     this.saveDatabase({ ...db, transactions: withTime });
+    if (isSupabaseConfigured()) {
+      withTime.forEach(t => {
+        updateTransactionInSupabaseDirect(t).catch(() => {});
+      });
+    }
   }
 
   public deleteTransaction(txId: string): { success: boolean; message: string } {
@@ -1774,6 +1836,9 @@ export class DataStorageService {
     const updatedOrders = (db.breakfastOrders || []).filter(o => o.transactionId !== txId && o.id !== `BO-TX-${txId}`);
 
     this.saveDatabase({ ...db, transactions: updatedTxs, rooms: updatedRooms, breakfastOrders: updatedOrders });
+    if (isSupabaseConfigured()) {
+      deleteTransactionInSupabaseDirect(txId).catch(err => console.warn('[Supabase] Gagal menghapus transaksi:', err));
+    }
     return { success: true, message: `Transaksi '${targetTx.guestName}' (${txId}) berhasil dihapus secara permanen.` };
   }
 
@@ -1827,6 +1892,9 @@ export class DataStorageService {
     }
 
     this.saveDatabase({ ...db, maintenances: updated });
+    if (isSupabaseConfigured()) {
+      updateMaintenanceInSupabaseDirect(mWithTime).catch(err => console.warn('[Supabase] Gagal menyimpan maintenance:', err));
+    }
     return mWithTime;
   }
 
@@ -1834,6 +1902,9 @@ export class DataStorageService {
     const db = this.getDatabase();
     const updated = (db.maintenances || []).filter(m => m.id !== maintId);
     this.saveDatabase({ ...db, maintenances: updated });
+    if (isSupabaseConfigured()) {
+      deleteMaintenanceInSupabaseDirect(maintId).catch(err => console.warn('[Supabase] Gagal menghapus maintenance:', err));
+    }
     return true;
   }
 
@@ -1941,6 +2012,9 @@ export class DataStorageService {
     }
 
     this.saveDatabase({ ...db, qcInspections: updated });
+    if (isSupabaseConfigured()) {
+      updateQcInspectionInSupabaseDirect(qcWithTime).catch(err => console.warn('[Supabase] Gagal menyimpan QC:', err));
+    }
     return qcWithTime;
   }
 
@@ -1948,6 +2022,9 @@ export class DataStorageService {
     const db = this.getDatabase();
     const updated = (db.qcInspections || []).filter(q => q.id !== qcId);
     this.saveDatabase({ ...db, qcInspections: updated });
+    if (isSupabaseConfigured()) {
+      deleteQcInspectionInSupabaseDirect(qcId).catch(err => console.warn('[Supabase] Gagal menghapus QC:', err));
+    }
     return true;
   }
 
@@ -2065,6 +2142,9 @@ export class DataStorageService {
     };
     const updatedDb = { ...db, appSettings: newSettings };
     this.saveDatabase(updatedDb);
+    if (isSupabaseConfigured()) {
+      updateAppSettingsInSupabaseDirect(newSettings).catch(err => console.warn('[Supabase] Gagal menyimpan pengaturan:', err));
+    }
     return newSettings;
   }
 
@@ -2246,6 +2326,9 @@ export class DataStorageService {
       updated = [orderWithTime, ...orders];
     }
     this.saveDatabase({ ...db, breakfastOrders: updated });
+    if (isSupabaseConfigured()) {
+      updateBreakfastOrderInSupabaseDirect(orderWithTime).catch(err => console.warn('[Supabase] Gagal menyimpan pesanan makan:', err));
+    }
     return orderWithTime;
   }
 
@@ -2283,6 +2366,9 @@ export class DataStorageService {
       breakfastOrders: filtered,
       transactions: txUpdated ? updatedTxs : db.transactions
     });
+    if (isSupabaseConfigured()) {
+      deleteBreakfastOrderInSupabaseDirect(orderId).catch(err => console.warn('[Supabase] Gagal menghapus pesanan makan:', err));
+    }
     return true;
   }
 

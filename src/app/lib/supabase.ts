@@ -947,6 +947,22 @@ export async function fetchFullDatabaseFromSupabase(): Promise<CompleteStorageDa
 
     const directUsers = usersRes.data && usersRes.data.length > 0 ? usersRes.data.map(mapSupabaseUserToAppUser) : null;
 
+    // AUTO-SEED: Jika tabel Supabase masih kosong melompong (baru dieksekusi schema.sql),
+    // otomatis unggah seluruh data master awal (Kamar, Gedung, Petugas, Tarif) ke Supabase
+    // agar data langsung muncul di Table Editor dashboard Supabase Anda!
+    if (relBuildings.length === 0 && relRooms.length === 0 && (!syncPayload || !syncPayload.rooms || syncPayload.rooms.length === 0)) {
+      console.log('[Supabase] Terdeteksi tabel di Supabase masih kosong. Melakukan inisialisasi data awal ke tabel Supabase...');
+      const initDb = generateInitialDatabase(false);
+      pushAllToTargetSupabase(SUPABASE_URL, SUPABASE_ANON_KEY, initDb).then((res) => {
+        if (res.success) {
+          console.log('[Supabase] Berhasil inisialisasi seluruh data master ke tabel-tabel PostgreSQL Supabase!');
+        } else {
+          console.warn('[Supabase] Inisialisasi awal ke Supabase menghasilkan catatan:', res.error);
+        }
+      }).catch(err => console.warn('[Supabase] Auto-seed exception:', err));
+      return initDb;
+    }
+
     // PRIORITASKAN TABEL RELASIONAL SUPABASE SECARA LANGSUNG SEBAGAI SINGLE SOURCE OF TRUTH:
     // Aksi CRUD (tambah, edit nama gedung, hapus) langsung membaca tabel database Supabase
     // sehingga perubahan di database akan langsung terlihat dan tidak pernah ter-reset oleh snapshot usang.
@@ -2521,6 +2537,109 @@ export async function updateRoomCapacityRateInSupabaseDirect(rate: RoomCapacityR
     };
     const { error } = await supabase.from('room_capacity_rates').upsert(payload, { onConflict: 'id' });
     if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * 7b. Fungsi UPDATE langsung ke tabel qc_inspections di Supabase
+ */
+export async function updateQcInspectionInSupabaseDirect(q: QcInspection): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = {
+      id: q.id,
+      room_id: q.roomId || null,
+      building: q.building || null,
+      room_number: q.roomNumber || null,
+      inspector_id: q.inspectorId || null,
+      inspector_name: q.inspectorName || null,
+      inspection_date: q.inspectionDate || new Date().toISOString(),
+      cleanliness: q.cleanliness || 'BAIK',
+      linen_bed: q.linenBed || 'LENGKAP_BERSIH',
+      ac_electricity: q.acElectricity || 'NORMAL',
+      plumbing_water: q.plumbingWater || 'LANCAR',
+      amenities: q.amenities || 'LENGKAP',
+      result: q.result || 'LOLOS_QC',
+      decision_type: q.decisionType || null,
+      notes: q.notes || null,
+      maintenance_id_created: q.maintenanceIdCreated || null,
+      facility_type: q.facilityType || 'KAMAR',
+      created_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('qc_inspections').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Error updating qc_inspection in Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * 7c. Fungsi UPDATE langsung ke tabel breakfast_orders di Supabase
+ */
+export async function updateBreakfastOrderInSupabaseDirect(o: BreakfastOrder): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = {
+      id: o.id,
+      room_number: o.roomNumber,
+      building: o.building || null,
+      guest_name: o.guestName,
+      phone: o.phone || null,
+      kloter: o.kloter || null,
+      transaction_id: o.transactionId || null,
+      menu_id: o.menuId || null,
+      menu_name: o.menuName,
+      portions: o.portions || 1,
+      days: o.days || 1,
+      start_date: o.startDate || new Date().toISOString().slice(0, 10),
+      delivery_time: o.deliveryTime || '06:30 WIB',
+      status: o.status || 'MENUNGGU',
+      notes: o.notes || '',
+      dietary_restriction: o.dietaryRestriction || null,
+      price_per_portion: o.pricePerPortion || 0,
+      total_price: o.totalPrice || 0,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('breakfast_orders').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Error updating breakfast_order in Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * 7d. Fungsi UPDATE langsung ke tabel app_settings di Supabase
+ */
+export async function updateAppSettingsInSupabaseDirect(s: AppSettings): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = {
+      id: 'default',
+      organization_name: s.organizationName,
+      sub_title: s.subTitle,
+      ministry_name: s.ministryName,
+      address: s.address,
+      phone: s.phone,
+      email: s.email,
+      portal_url: s.portalUrl,
+      app_logo: s.appLogo || null,
+      app_favicon: s.appFavicon || null,
+      tag_title: s.tagTitle || null,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Error updating app_settings in Supabase:', error.message);
       return { success: false, error: error.message };
     }
     return { success: true };
